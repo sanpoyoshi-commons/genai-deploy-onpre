@@ -1,0 +1,158 @@
+{
+  "realm": "genai-realm",
+  "enabled": true,
+  "displayName": "オンプレ AI 環境",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 30,
+  "passwordPolicy": "length(8) and upperCase(1) and digits(1) and specialChars(1)",
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "groups": [
+    { "name": "SystemAdmin" },
+    { "name": "TeamAdmin" },
+    { "name": "User" }
+  ],
+  "defaultGroups": ["/User"],
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@genai.local",
+    "fromDisplayName": "オンプレ AI 環境",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
+  "clients": [
+    {
+      "clientId": "genai-web",
+      "name": "genai-web (SPA front, public/PKCE S256)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": ["https://localhost/*"],
+      "webOrigins": ["https://localhost"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://localhost/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "cognito-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "cognito:groups",
+            "full.path": "false",
+            "multivalued": "true",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "genai-ai-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "genai-ai-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "genai-web-dev",
+      "name": "genai-web-dev (DEV検証専用・Direct Access Grant 有効・本番では削除/無効化)",
+      "description": "e2e 検証用 dev 専用 public client（password grant 可）。本番 client genai-web は Direct Grant 無効を保持。本番公開時は本 client を削除/無効化すること。",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "cognito-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "cognito:groups",
+            "full.path": "false",
+            "multivalued": "true",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "genai-ai-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "genai-ai-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "genai-ai-api-admin",
+      "name": "genai-ai-api-admin (backend service account: Admin REST group membership)",
+      "description": "api が Keycloak Admin REST（findUserByEmail / グループ加入離脱）を呼ぶ confidential service-account client。client_credentials grant、最小権限。本番は secret ローテーション必須。",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "@@KEYCLOAK_ADMIN_CLIENT_SECRET@@",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@example.local",
+      "firstName": "Local",
+      "lastName": "Admin",
+      "requiredActions": [],
+      "groups": ["/SystemAdmin"],
+      "credentials": [
+        { "type": "password", "value": "@@ADMIN_PASSWORD@@", "temporary": false }
+      ]
+    },
+    {
+      "username": "service-account-genai-ai-api-admin",
+      "enabled": true,
+      "serviceAccountClientId": "genai-ai-api-admin",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "query-groups"]
+      }
+    }
+  ]
+}

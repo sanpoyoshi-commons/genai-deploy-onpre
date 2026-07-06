@@ -1,0 +1,47 @@
+# pre-commit configuration for genai-deploy-onpre
+# 方針: rev でバージョンを固定し、新規リリースは 7 日のクールダウン下限を満たしてから採用する。
+# secrets 検出は commit 時、重いセキュリティスキャナ（IaC/依存/FS）は push 時に走る。
+# 有効化: pre-commit install（pre-commit と pre-push の両フックを入れる）。
+# pre-push のスキャナは uvx（checkov）/ docker（trivy・osv-scanner）を使う。
+#   これらが未導入の環境では各フックは自動でスキップされる（push は止めない）。
+# 手動一括: pre-commit run --hook-stage pre-push --all-files
+# 関連設定: .gitleaks.toml（gitleaks）/ .checkov.yaml（checkov）/ .trivyignore（trivy）
+# 注: ここでの trivy は fs モード（ソース/Dockerfile/lockfile）。pull/build される image の
+#     OS パッケージ層 CVE は ./scripts/scan-images.sh（trivy image・CRITICAL ブロック）で別途
+#     棚卸しする。重いため per-push には入れず、公開スナップショット前のリリースゲート＋定期再 pin
+#     として手動/CI で走らせる。
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1  # 2026-03-21 リリース、2026-05-22 確認時点で62日経過、クールダウン下限7日を大幅超過
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      # IaC（Dockerfile / docker-compose）。findings で push を止める。uvx 未導入ならスキップ。
+      - id: checkov
+        name: checkov (IaC)
+        entry: bash -c 'if command -v uvx >/dev/null 2>&1; then uvx checkov -d . --quiet --compact; else echo "[pre-push] uvx 未導入のため checkov をスキップ"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # FS スキャン（依存脆弱性 / 設定ミス / 秘密）。docker 未導入ならスキップ。
+      # --ignorefile で .trivyignore（根拠付き抑制）を適用。--skip-dirs で gitignore 済の
+      # ローカル生成物（自己署名 TLS 鍵・secrets・モデル等＝コミットされない）を除外。
+      - id: trivy
+        name: trivy (fs vuln/misconfig/secret)
+        entry: bash -c 'if command -v docker >/dev/null 2>&1; then docker run --rm -v "$PWD":/src aquasec/trivy:latest fs --scanners vuln,misconfig,secret --ignorefile /src/.trivyignore --skip-dirs certs,secrets,security-reports,tei,seaweedfs,keycloak/import --exit-code 1 --quiet /src; else echo "[pre-push] docker 未導入のため trivy をスキップ"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # 依存の既知脆弱性（sandbox/requirements.txt 等）。docker 未導入ならスキップ。
+      - id: osv-scanner
+        name: osv-scanner (deps)
+        entry: bash -c 'if command -v docker >/dev/null 2>&1; then docker run --rm -v "$PWD":/src ghcr.io/google/osv-scanner:latest scan source -r /src; else echo "[pre-push] docker 未導入のため osv-scanner をスキップ"; fi'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

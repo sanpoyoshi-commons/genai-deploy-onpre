@@ -1,0 +1,17 @@
+{
+  "//": "SeaweedFS S3 認証設定テンプレート。",
+  "//template": "gen-secrets.sh が secretKey の placeholder を secrets/s3_secret_access_key の値で置換し、secrets/s3.config.json として実体を生成する。実体は git 管理外（.gitignore の secrets/* ルール）。メタ説明に placeholder 表記を書かないこと（sed の全置換でコメント内も置換され、秘密値がコメント内に焼き付く）。",
+  "//creds": "api の S3_ACCESS_KEY_ID と一致させる accessKey は dev 既定値（非機微）。本番でも accessKey は固定で secretKey のみローテーション運用。",
+  "identities": [
+    {
+      "name": "genai-api",
+      "credentials": [
+        {
+          "accessKey": "genai-s3-dev-key",
+          "secretKey": "@@S3_SECRET_KEY@@"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

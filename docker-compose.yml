@@ -1,0 +1,956 @@
+# genai-deploy-onpre — docker-compose.yml
+#
+# 個人開発者が `docker compose up -d` で起動できるローカル AI 基盤の配布物。
+#
+# 構成概要：
+#   - インフラ系 8（postgres/keycloak-db/keycloak/seaweedfs/nginx/mailpit/dozzle/api）は既定で起動・healthy 検証対象
+#   - LLM/embedding 系（ollama/tei）は profile: llm / embedding で定義（起動任意）
+#   - 画像生成（sdcpp）は profile: image で定義（起動任意・モデルは手動配置）
+#   - キュー（elasticmq）は profile: queue で定義（起動任意）
+#
+# バージョン固定：全イメージ タグ＋SHA(digest) 併記（digest は 2026-05-25 時点で取得）。
+# TLS：client→nginx 自己署名 HTTPS（外部）＋ nginx↔api 内部 TLS。
+#   証明書は `scripts/gen-certs.sh` で生成（certs/ は .gitignore）。各端末 rootCA 信頼登録は README 参照。
+#
+# 起動例：
+#   ./scripts/gen-certs.sh                    # 初回のみ：自己署名証明書生成
+#   docker compose up -d                      # インフラ 8 サービス
+#   docker compose --profile llm up -d        # ＋ ollama / tei（LLM・embedding）
+#   docker compose --profile image up -d      # ＋ sdcpp（画像生成・要モデル配置 ./sdcpp/models/）
+#   docker compose --profile queue up -d      # ＋ elasticmq（キュー）
+#   docker compose ps                         # healthy 状態確認（ps/exec で検証）
+#
+# 機密値は .env（手動作成、.gitignore）。テンプレートは .env.example。
+
+name: genai-local
+
+# ============================================================================
+# 共通ログ設定（json-file ドライバ、ログ無制限増大の防止）
+#   max-size=100m / max-file=3。Dozzle はこの json-file をそのまま読むビューア層。
+# ============================================================================
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '100m'
+    max-file: '3'
+
+# ============================================================================
+# サービス定義
+# ============================================================================
+services:
+
+  # ---- インフラ系（既定で起動・healthy 検証対象） -------------------------------
+
+  # 業務 DB ＋ ベクトル検索（pgvector 同梱）。DynamoDB / Knowledge Base 代替。
+  # pg_bigm（全文検索拡張）は postgres/Dockerfile のカスタムビルドで導入済み。
+  # 拡張有効化は postgres/initdb/01-extensions.sql（CREATE EXTENSION vector / pg_bigm）。
+  postgres:
+    # pgvector 0.8.3 + pg_bigm v1.2-20250903 のカスタムイメージ。
+    # ベースイメージ digest は postgres/Dockerfile 内で固定。初回は build が必要：
+    #   docker compose build postgres
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: genai-postgres-onpre:pg16-pgvector0.8.3-pgbigm1.2
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-genai}
+      POSTGRES_USER: ${POSTGRES_USER:-genai}
+      # 既定は .env 方式。docker-compose.secrets.yml オーバーレイ使用時は
+      # POSTGRES_PASSWORD_FILE が上書きする（空で衝突回避）。未設定時は起動時に postgres がエラー。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # 拡張有効化（vector / pg_bigm）。初回 initdb 時のみ実行。
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - genai_internal
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "${POSTGRES_USER:-genai}" -d "${POSTGRES_DB:-genai}"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Keycloak 専用 DB（公式推奨の分離）。
+  keycloak-db:
+    image: postgres:16.14-alpine@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      # 既定 .env 方式。secrets オーバーレイ時は POSTGRES_PASSWORD_FILE が上書き。
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-}
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    networks:
+      - genai_internal
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U keycloak -d keycloak']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # 認証・IdP（Cognito 代替）。
+  # nginx 前段 + 内部 HTTP の公式サポート構成。
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3@sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac
+    command: ['start', '--optimized=false', '--http-enabled=true', '--hostname-strict=false', '--proxy-headers=xforwarded', '--health-enabled=true', '--import-realm']
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: keycloak-db
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      # 既定 .env 方式。secrets オーバーレイ時は entrypoint ラッパが secret ファイルから注入。
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-}
+      # nginx 経由の到達ホスト名。issuer は KC_HOSTNAME 連動（https://localhost/auth/realms/genai-realm）。
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-https://localhost/auth}
+    ports:
+      # dev 用：管理コンソールを localhost のみに公開（LAN 非公開）。本番は nginx 経由。
+      - '${HTTP_BIND:-127.0.0.1}:${KEYCLOAK_HTTP_PORT:-8088}:8080'
+    volumes:
+      # 宣言的 realm import。genai-realm-realm.json を起動時 import（--import-realm）。
+      # 実体は gen-secrets.sh がテンプレ（keycloak/import/genai-realm-realm.template.json）から
+      # secrets/keycloak-import/ 配下に生成（秘密値の git 焼付回避）。
+      - ./secrets/keycloak-import:/opt/keycloak/data/import:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - genai_internal
+    healthcheck:
+      # Keycloak 26 は management ポート 9000 に /health/ready を公開。
+      # 公式イメージに curl/wget が無いため bash の /dev/tcp で疎通確認。
+      test: ['CMD-SHELL', 'exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e "GET /health/ready HTTP/1.0\r\n\r\n" >&3 && cat <&3 | grep -q "\"status\": \"UP\""']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # オブジェクトストレージ（S3 互換、MinIO 代替）。at-rest 暗号化 ON。
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.34@sha256:6620371e8af8282056685c652d4637265698c9e2c2d59f9594e6ac333ad6c634
+    # -s3.config で S3 認証を有効化。creds の実体は gen-secrets.sh がテンプレ
+    # （seaweedfs/s3.config.template.json）から secrets/s3.config.json として生成し本サービスに mount する
+    # （秘密値の git 焼付回避）。本番は creds をローテーションして上書き。
+    command: ['server', '-dir=/data', '-s3', '-s3.port=8333', '-s3.config=/etc/seaweed/s3.config.json', '-s3.encryptVolumeData', '-filer.encryptVolumeData']
+    volumes:
+      - seaweedfs_data:/data
+      - ./secrets/s3.config.json:/etc/seaweed/s3.config.json:ro
+    networks:
+      - genai_internal
+    healthcheck:
+      # master cluster healthz（HTTP 200）。イメージに wget があれば spider 確認。
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:9333/cluster/healthz || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # S3 バケット初期化（一回限り、FileStorage）。file/audio/artifacts の 3 バケットを
+  # 冪等作成する。weed shell は master 経由で作成（S3 creds 不要）。既存バケットはエラーになるが無視する（|| true）。
+  # seaweedfs image を流用（追加 image 不要）。バケット名は api の *_BUCKET_NAME と一致させる。
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.34@sha256:6620371e8af8282056685c652d4637265698c9e2c2d59f9594e6ac333ad6c634
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        for b in "${FILE_BUCKET_NAME:-genai-files}" "${AUDIO_BUCKET_NAME:-genai-audio}" "${ARTIFACTS_BUCKET_NAME:-genai-artifacts}"; do
+          echo "s3.bucket.create -name $$b" | weed shell -master=seaweedfs:9333 || true
+        done
+    networks:
+      - genai_internal
+    restart: 'no'
+    logging: *default-logging
+
+  # 業務 DB スキーマの自動適用（一回限り、運用ハードニング）。
+  # 課題：ランタイム api image は dist＋prod node_modules のみで prisma CLI / schema を持たず、
+  #   `prisma migrate deploy` を手動ワンオフ（リポ mount コンテナ＋URL エンコード）で打つ必要があった
+  #   ＝`docker compose up -d` 一発から外れてしまう。
+  # 対処：api リポ Dockerfile の migrate ステージ（build 流用＝prisma CLI＋schema＋migrations 同梱）を
+  #   build target=migrate でビルドし、postgres healthy 後に migrate deploy を一回だけ実行する init サービス。
+  #   api/worker は service_completed_successfully で待つ＝スキーマ確定後に起動（api と worker の二重 migrate
+  #   競合も回避）。seaweedfs-init / elasticmq-init と同じ init サービス・イディオム。
+  # P1013：migrate は厳格 Rust パーサ。DATABASE_URL 組み立て時に POSTGRES_PASSWORD を node の
+  #   encodeURIComponent で URL エンコードする（runtime の adapter-pg は緩く通るが migrate は特殊文字で弾く）。
+  #   パスワード値はエコーせず環境変数のまま node へ渡す。
+  migrate:
+    build:
+      context: ../genai-ai-api-onpre
+      dockerfile: Dockerfile
+      target: migrate
+    image: genai-ai-api-onpre:migrate
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-genai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-genai}
+    # `$$` は compose ではなくコンテナ内シェルで展開する意（compose は `$$`→`$`）。
+    # パスワードのみ node で URL エンコードし、user/db はそのまま埋める。
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        export DATABASE_URL="postgresql://$${POSTGRES_USER}:$$(node -e 'process.stdout.write(encodeURIComponent(process.env.POSTGRES_PASSWORD || ""))')@postgres:5432/$${POSTGRES_DB}"
+        exec npx prisma migrate deploy
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - genai_internal
+    restart: 'no'
+    logging: *default-logging
+
+  # バックエンド API（TS / Express、Lambda 群 → 単一 Express 統合）。自前ビルド。
+  # nginx↔api 内部 TLS（HTTPS 3443）。証明書を ./certs から read-only マウント。
+  api:
+    build:
+      context: ../genai-ai-api-onpre
+      dockerfile: Dockerfile
+    image: genai-ai-api-onpre:m1-4
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # 内部 TLS。cert/key がある場合 HTTPS、無い場合 HTTP 後方互換。
+      TLS_CERT: /certs/api.crt
+      TLS_KEY: /certs/api.key
+      TLS_PORT: '3443'
+      # ExApp 非同期キュー（ElasticMQ／SQS 互換）。.env から展開。
+      # invokeExApp は /api（requireAuth）配下にマウント済。
+      SQS_ENDPOINT: ${SQS_ENDPOINT}
+      AWS_REGION: ${AWS_REGION}
+      EXAPP_QUEUE_URL: ${EXAPP_QUEUE_URL}
+      # 文字起こし非同期ジョブキュー（ElasticMQ）。startTranscription #18 が jobName をトリガ投入。
+      TRANSCRIBE_QUEUE_URL: ${TRANSCRIBE_QUEUE_URL:-http://elasticmq:9324/000000000000/genai-transcribe-async}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      # 業務 DB（Prisma 7 driver-adapter）。パスワードの重複・同期ミスを避けるため
+      # POSTGRES_PASSWORD から組み立てる（DATABASE_URL は .env / .env.example に置かない）。
+      # invokeExApp の invoke 履歴作成で利用。
+      DATABASE_URL: postgresql://${POSTGRES_USER:-genai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-genai}
+      # Keycloak access token 検証（requireAuth・jose JWKS）。非秘密の固定値のため
+      # compose 既定値で docker compose up 一発成立（DATABASE_URL と同じ「真実は1か所」思想）。
+      # ISSUER は KC_HOSTNAME 連動（token の iss と一致）／JWKS_URI はコンテナ内部経路（/auth 無し）。
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-https://localhost/auth/realms/genai-realm}
+      KEYCLOAK_JWKS_URI: ${KEYCLOAK_JWKS_URI:-http://keycloak:8080/realms/genai-realm/protocol/openid-connect/certs}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-genai-ai-api}
+      # Keycloak Admin REST 連携（KeycloakIdpClient・findUserByEmail/グループ加入離脱）。
+      # サービスアカウント client（client_credentials）。BASE_URL/REALM/CLIENT_ID は非秘密固定値＝compose 既定値。
+      # CLIENT_SECRET は dev 既定値（realm import の dev secret と一致）。本番は .env / docker secrets で必ず上書き＋
+      # Keycloak 側 client secret をローテーション。teams CRUD（createTeam 等）がこの連携を使う。
+      KEYCLOAK_ADMIN_BASE_URL: ${KEYCLOAK_ADMIN_BASE_URL:-http://keycloak:8080}
+      KEYCLOAK_ADMIN_REALM: ${KEYCLOAK_ADMIN_REALM:-genai-realm}
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-genai-ai-api-admin}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-genai-admin-dev-secret-change-me}
+      # 添付ファイルは base64 で predict ボディに inline されるため Express body 上限を引き上げる
+      # （既定 100kb では数百 KB の文書で 413）。~4.5MB 添付を満たす 10mb を既定とする。
+      API_JSON_BODY_LIMIT: ${API_JSON_BODY_LIMIT:-10mb}
+      # LLM 抽象化レイヤー。predict / predictTitle / predictStream が消費。LLM_BACKEND 1 行で
+      # 経路切替。対応経路は openai 互換の ollama（既定・実配線済 live 検証済）/ vllm / openai / anthropic /
+      # gemini と、SigV4 認証の bedrock（Converse API・専用アダプタ。vllm/openai/cloud-api/bedrock は config
+      # 実装済・live 未検証）。非秘密は compose 既定値・cloud の API キーのみ秘密（既定空＝使用時に .env で設定）。
+      # ollama は profile llm（既定 up 外）＝api は ollama 不在でも起動し、推論実行時にのみ ollama へ接続する
+      # （未起動時は接続エラー）。利用時は別途 `docker compose --profile llm up -d ollama` ＋ モデル pull が必要：
+      #   docker compose --profile llm exec ollama ollama pull gemma4:e2b（Apache-2.0）。
+      LLM_BACKEND: ${LLM_BACKEND:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+      OLLAMA_DEFAULT_CHAT_MODEL: ${OLLAMA_DEFAULT_CHAT_MODEL:-gemma4:e2b}
+      # vllm 経路（LLM_BACKEND=vllm のときのみ使用。OpenAI 互換）。vLLM はオプション（GPU 環境向け）で、
+      # CPU 既定を壊さないため本スタックには vLLM コンテナを含めない。外部 GPU ホスト等で
+      # 起動した vLLM の URL を VLLM_BASE_URL に設定して指す（空なら api 側 config の既定 http://vllm:8000/v1）。
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-}
+      VLLM_DEFAULT_CHAT_MODEL: ${VLLM_DEFAULT_CHAT_MODEL:-}
+      # cloud-api 経路（LLM_BACKEND=anthropic/gemini のときのみ使用。OpenAI 互換エンドポイントを流用）。
+      # API キーは秘密＝既定空（.env で設定）。既定モデルは空なら api 側 config の保守的既定へ委譲
+      # （anthropic=claude-3-5-haiku-latest / gemini=gemini-1.5-flash・cloud モデル ID は随時更新）。
+      # 高度な上書き（ANTHROPIC_BASE_URL / ANTHROPIC_MAX_TOKENS / GEMINI_BASE_URL）は api 側 config に
+      # 既定があり、必要時にこの env へ追記して上書きできる。
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_DEFAULT_CHAT_MODEL: ${ANTHROPIC_DEFAULT_CHAT_MODEL:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_DEFAULT_CHAT_MODEL: ${GEMINI_DEFAULT_CHAT_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_DEFAULT_CHAT_MODEL: ${OPENAI_DEFAULT_CHAT_MODEL:-}
+      # bedrock 経路（LLM_BACKEND=bedrock のときのみ使用。Converse API・SigV4）。認証は AWS SDK の既定
+      # クレデンシャルチェーン＝上記 AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY（一時クレデンシャルは
+      # AWS_SESSION_TOKEN も）と AWS_REGION をそのまま読む。region は BEDROCK_REGION 優先・無ければ AWS_REGION。
+      # 注意：AWS_ACCESS_KEY_ID は ElasticMQ 用に既定 'local' を持つため、bedrock 利用時は .env で実 AWS
+      # クレデンシャルを設定する（'local' のままだと AccessDenied＝AUTHENTICATION。インスタンスプロファイル
+      # 解決は 'local' 既定に遮られる点に留意）。既定モデルは空なら api 側 config の保守的既定へ委譲
+      # （anthropic.claude-3-5-haiku-20241022-v1:0・新しめのモデルは推論プロファイル ID が要る場合あり）。
+      BEDROCK_REGION: ${BEDROCK_REGION:-}
+      BEDROCK_DEFAULT_CHAT_MODEL: ${BEDROCK_DEFAULT_CHAT_MODEL:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      # 利用可能モデルの許可リスト（JSON 配列）。空配列はリクエスト modelId を素通し（既定モデルへ委譲）。
+      MODEL_IDS: ${MODEL_IDS:-[]}
+      # リクエスト未指定時の既定モデル（空なら MODEL_IDS[0]、それも空なら OLLAMA_DEFAULT_CHAT_MODEL へ委譲）。
+      LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-}
+      # LLM 1 呼び出しのタイムアウト（ミリ秒）。既定 30 分。ローカル CPU 推論は大きいプロンプト
+      # （ダイアグラム生成 ~7K トークン）のプレフィルだけで 10 分超かかり、その間は応答ヘッダが
+      # 返らない（undici の headersTimeout も api 側でこの値に追従させている）。短すぎると最初の
+      # トークン到達前に切れるため、コード既定（1_800_000）と一致させる。nginx 側 proxy_read_timeout
+      # とも整合させること（短い方が律速）。
+      LLM_DEFAULT_TIMEOUT_MS: ${LLM_DEFAULT_TIMEOUT_MS:-1800000}
+      # 既定サンプリング温度。空＝バックエンド既定（ollama OpenAI 互換は 1.0）。ダイアグラム生成等の
+      # 構造化出力（mermaid）は高温だと書式が崩れやすく、0.2 程度に下げると遵守が安定する。0〜2 を採用。
+      LLM_DEFAULT_TEMPERATURE: ${LLM_DEFAULT_TEMPERATURE:-}
+      # 埋め込み（embedding）抽象化レイヤー（RAG）。chat とは独立の
+      # EMBEDDING_BACKEND（既定 tei）で経路選択。tei はローカル既定＝tei サービス（ruri-v3-310m・OpenAI 互換
+      # /v1/embeddings）へ接続する。tei は profile embedding（既定 up 外・llm から分離）＝api は tei 不在でも起動し、
+      # 埋め込み実行時にのみ接続する（lazy）。depends_on は付けない（任意起動・遅延接続＝LLM/Image と同方針）。
+      # EMBEDDING_MODEL_ID は tei サービスの --model-id と共有（同一モデルを指す）。openai 経路時のみ
+      # OPENAI_API_KEY（上の cloud-api ブロックと共用）が必要。
+      EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-tei}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-http://tei:80/v1}
+      EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID:-cl-nagoya/ruri-v3-310m}
+      EMBEDDING_DEFAULT_TIMEOUT_MS: ${EMBEDDING_DEFAULT_TIMEOUT_MS:-300000}
+      # RAG 本体。embedding（上の tei/ruri）＋ pgvector ＋ pg_bigm ＋ RRF。
+      # rag ルート（POST /api/rag/documents 取込・/api/rag/query retrieve-and-generate）が消費。回答生成は
+      # 上の LLM 抽象化レイヤー（chat と同一 backend）を流用。下記は初期値で、チューニングは
+      # env 1 行で調整可（chunk／RRF）。RAG テーブルは migrate stage で
+      # 自動適用（rag_source_documents / rag_chunks＝embedding vector(768)・HNSW＋pg_bigm GIN インデックス）。
+      RAG_MAX_CHUNK_SIZE: ${RAG_MAX_CHUNK_SIZE:-1000}
+      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-120}
+      RAG_RRF_K: ${RAG_RRF_K:-60}
+      RAG_TOP_M: ${RAG_TOP_M:-10}
+      RAG_FETCH_K: ${RAG_FETCH_K:-20}
+      RAG_BIGM_SIMILARITY_LIMIT: ${RAG_BIGM_SIMILARITY_LIMIT:-0.2}
+      # リランカ。cross-encoder（ruri-v3-reranker-310m）で retrieve 候補を
+      # 並べ替え、法令ドメインの Hit@1 を引き上げる（bench 実証 45%→90%）。RERANK_ENABLED で有効化（既定 false＝
+      # tei-reranker 未起動環境を壊さない・graceful degradation で吸収）。有効時は RERANK_BASE_URL（tei-reranker
+      # サービス・TEI ネイティブ /rerank）へ接続し、RERANK_CANDIDATES 件の候補プールを rerank→最終 RAG_TOP_M に
+      # 絞る。tei-reranker は profile rerank（既定 up 外）＝api は不在でも起動し、失敗時は RRF 順へフォールバック
+      # （depends_on は付けない・任意起動＝LLM/embedding/image と同方針）。有効化手順：
+      #   1) scripts/export-ruri-reranker-onnx.sh 実行済（tei/models/ruri-v3-reranker-310m-onnx）
+      #   2) docker compose --profile rerank up -d tei-reranker
+      #   3) RERANK_ENABLED=true で api を再作成（.env または環境変数で上書き）
+      RERANK_ENABLED: ${RERANK_ENABLED:-false}
+      RERANK_BACKEND: ${RERANK_BACKEND:-tei}
+      RERANK_BASE_URL: ${RERANK_BASE_URL:-http://tei-reranker:80}
+      RERANK_CANDIDATES: ${RERANK_CANDIDATES:-20}
+      RERANK_DEFAULT_TIMEOUT_MS: ${RERANK_DEFAULT_TIMEOUT_MS:-60000}
+      # オブジェクトストレージ（SeaweedFS / S3 互換、FileStorage 実配線）。
+      # file #15-17 / transcribe #19 / artifact #44 が消費。presign は公開エンドポイント（ブラウザ到達用・
+      # nginx:8443 経由・prefix なし）で SigV4 署名し、deleteObject は内部直結（seaweedfs:8333）で送る
+      # （2 client 分離）。SeaweedFS は -s3.config で認証を効かせるため SDK は専用 creds で署名する。
+      # 非秘密は compose 既定値。S3_PUBLIC_ENDPOINT は外部到達 host:port（LAN 公開時は HTTP_BIND 連動で要調整）。
+      # creds は dev 既定値＝KEYCLOAK_ADMIN_CLIENT_SECRET と同方式（本番は .env / docker secrets で必ず上書き）。
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-https://localhost:8443}
+      S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:8333}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-genai-s3-dev-key}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-genai-s3-dev-secret-change-me}
+      # バケット名（file / audio / artifacts）。config.ts が解決して bucket 引数で渡す。
+      FILE_BUCKET_NAME: ${FILE_BUCKET_NAME:-genai-files}
+      AUDIO_BUCKET_NAME: ${AUDIO_BUCKET_NAME:-genai-audio}
+      ARTIFACTS_BUCKET_NAME: ${ARTIFACTS_BUCKET_NAME:-genai-artifacts}
+      # ExApp apiKey 暗号鍵（任意・base64(32B) or hex(64)）。設定時は createExApp の setApiKey で AES-256-GCM 暗号化
+      # （worker と同一値であること＝復号に必須）。未設定なら ex_app_api_keys に平文保存（localhost 単一運用の既定）。
+      EXAPP_APIKEY_ENC_KEY: ${EXAPP_APIKEY_ENC_KEY:-}
+      # 画像生成（stable-diffusion.cpp server、ImageClient 実配線）。generateImage #14 が消費。
+      # IMAGE_BACKEND 1 行で経路選択（現状は sdcpp のみ）。sdcpp は profile image（既定 up 外）＝api は sdcpp 不在
+      # でも起動し、生成実行時にのみ接続する（未起動時は接続エラー）。depends_on は付けない（lazy・任意起動）。
+      # 利用時：モデルを ./sdcpp/models/ に配置 → docker compose --profile image up -d sdcpp（README 参照）。
+      IMAGE_BACKEND: ${IMAGE_BACKEND:-sdcpp}
+      SDCPP_BASE_URL: ${SDCPP_BASE_URL:-http://sdcpp:8080}
+      # Code Interpreter（CSV/Excel→pandas→matplotlib）の委譲先。sandbox は profile sandbox（既定 up 外）＝
+      # api は不在でも起動し、実行時にのみ接続（ollama/sdcpp と同方針・depends_on は付けない）。
+      # 機能 ON/OFF（codeInterpreter）は COMPOSE_PROFILES に sandbox が含まれるかで api が自前算出する。
+      SANDBOX_BASE_URL: ${SANDBOX_BASE_URL:-http://sandbox:8080}
+      # Code Interpreter の頭脳側ノブ（api が消費＝src/lib/sandbox/config.ts・src/lib/llm/models.ts）。
+      # CODE_INTERPRETER_MODEL はコード生成 LLM（頭脳階層連動・空なら LLM_DEFAULT_MODEL へ委譲）。
+      # 既定は api 側ハードコード既定と一致＝未設定時は挙動不変、.env で上書き可能にする配線。
+      CODE_INTERPRETER_MODEL: ${CODE_INTERPRETER_MODEL:-}
+      CODE_INTERPRETER_TIMEOUT_MS: ${CODE_INTERPRETER_TIMEOUT_MS:-60000}
+      CODE_INTERPRETER_MAX_ATTEMPTS: ${CODE_INTERPRETER_MAX_ATTEMPTS:-3}
+      CODE_INTERPRETER_MAX_FILE_BYTES: ${CODE_INTERPRETER_MAX_FILE_BYTES:-26214400}
+      # CPU 推論を見込む生成タイムアウトとジョブポーリング間隔（ms）。
+      IMAGE_GENERATION_TIMEOUT_MS: ${IMAGE_GENERATION_TIMEOUT_MS:-300000}
+      IMAGE_POLL_INTERVAL_MS: ${IMAGE_POLL_INTERVAL_MS:-1000}
+      # 利用可能画像モデルの許可リスト（JSON 配列）／既定モデル（image/models.ts）。空はリクエスト素通し。
+      IMAGE_GENERATION_MODEL_IDS: ${IMAGE_GENERATION_MODEL_IDS:-[]}
+      IMAGE_DEFAULT_MODEL: ${IMAGE_DEFAULT_MODEL:-}
+      # 文字起こし（faster-whisper-server＝speaches、TranscriptionClient 実配線）。
+      # startTranscription #18 / getTranscription #20 が消費。実際の Whisper 呼び出しは worker が担うが、
+      # api 側もモデル名等を共有するため env を揃える（worker と同一の .env 経路）。whisper は profile transcribe
+      # （既定 up 外）＝api は whisper 不在でも起動し、文字起こし実行時にのみ worker が接続する。
+      # WHISPER_MODEL は HF リポ名（CPU 速度↔精度の調整余地。既定 large-v3-turbo=CPU 実用／large-v3=高精度・低速／medium・small=高速）。
+      TRANSCRIPTION_BACKEND: ${TRANSCRIPTION_BACKEND:-faster-whisper}
+      WHISPER_BASE_URL: ${WHISPER_BASE_URL:-http://whisper:8000/v1}
+      WHISPER_MODEL: ${WHISPER_MODEL:-deepdml/faster-whisper-large-v3-turbo-ct2}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-}
+      WHISPER_TIMEOUT_MS: ${WHISPER_TIMEOUT_MS:-600000}
+      # 機能 ON/OFF（profile 連動）。api は base 常時起動で COMPOSE_PROFILES を知らないため、
+      # nginx と同じ値を明示注入する。off の機能ルート（rag/image/transcribe）は api 側でも明示エラー（503）を返し、
+      # 「メニュー非表示なのに経路だけ生きて壊れる」導線を防ぐ（enabledUseCases 解決は src/lib/config）。
+      # ENABLED_USE_CASES を明示すればそれを優先（方式 c・nginx と同仕様）。
+      COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
+      ENABLED_USE_CASES: ${ENABLED_USE_CASES:-}
+      # 法令 RAG レポート生成のシステムプロンプト上書き。既定＝同梱のリーン版（ローカル小型 LLM 向けに
+      # 要点圧縮したプロンプト）。A/B 検証で回帰ゼロ・300s timeout 回避4勝・負け0 を確認し本採用（2026-06-08）。
+      # ./api-config を /config/law-rag に read-only マウント済みなので、再ビルドなしでプロンプトを差し替えられる。
+      # 組込み既定（GENERATE_REPORT_SYSTEM_PROMPT・90行版）へ戻す場合は env で空文字を渡す：
+      #   LAW_RAG_REPORT_PROMPT_FILE= docker compose ... up -d --no-deps api
+      # 読めない/空なら組込み既定へ安全フォールバック（起動・生成は壊さない）。反映は api 再起動で。
+      LAW_RAG_REPORT_PROMPT_FILE: ${LAW_RAG_REPORT_PROMPT_FILE:-/config/law-rag/law-report-prompt.lean.txt}
+      # 法令 RAG の通称→正式名称辞書（略称を法令特定の正式名称へ決定論置換）。プロンプトと同じく
+      # ./api-config の JSON をマウント参照し、再ビルドなし（JSON 差し替え＋api 再起動）で増減できる。
+      # 未指定・読めない・不正 JSON なら空辞書へ安全フォールバック（辞書機能だけ無効化＝素の embedding 解決）。
+      # 収録基準の検証は scripts/law-alias-verify.mjs（正式名称の DB 一意実在・自己解決）。反映は api 再起動で。
+      LAW_RAG_ALIASES_FILE: ${LAW_RAG_ALIASES_FILE:-/config/law-rag/law-name-aliases.json}
+    volumes:
+      - ./certs/api.crt:/certs/api.crt:ro
+      - ./certs/api.key:/certs/api.key:ro
+      # 法令 RAG プロンプト等の差し替え用 config（read-only・LAW_RAG_REPORT_PROMPT_FILE から参照）。
+      - ./api-config:/config/law-rag:ro
+    depends_on:
+      # 業務 DB（Prisma）と Keycloak（requireAuth の JWKS 検証）に依存。
+      postgres:
+        condition: service_healthy
+      # スキーマ適用完了後に起動（migrate init サービス、運用ハードニング）。
+      migrate:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      # オブジェクトストレージ（file/transcribe/artifact）。バケット作成完了後に起動する。
+      seaweedfs:
+        condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
+    networks:
+      - genai_internal
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "process.env.NODE_TLS_REJECT_UNAUTHORIZED='0'; fetch('https://127.0.0.1:3443/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # リバースプロキシ + TLS termination + 静的配信。唯一の外部公開層。
+  nginx:
+    image: nginx:1.30.3-alpine3.23@sha256:1bbb1c7ee25067dafc126f7fa39437876283dfa439bbd12df6a5ecd99dc675e4
+    environment:
+      # 実行時モデルメニュー（on-premise 可変化）。api サービスと同一の .env 値を共有し、
+      # entrypoint の envsubst で /config.js を生成＝web セレクタと api 許可リストの単一の真実。
+      # 変更時は web 再 build 不要（.env 編集＋nginx 再起動でセレクタが切り替わる）。
+      MODEL_IDS: ${MODEL_IDS:-[]}
+      IMAGE_GENERATION_MODEL_IDS: ${IMAGE_GENERATION_MODEL_IDS:-[]}
+      # 機能 ON/OFF（profile 連動）。COMPOSE_PROFILES はホスト env で
+      # サービス選択に使われるがコンテナには自動で入らないため明示注入する。entrypoint がこれを解析して
+      # web の有効機能（enabledUseCases）を config.js に注入し、profile を ON にすれば対応メニューも自動 ON
+      # になる（二重設定の解消・web 再 build 不要）。ENABLED_USE_CASES を明示すればそれを優先（方式 c）。
+      COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
+      ENABLED_USE_CASES: ${ENABLED_USE_CASES:-}
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/templates:/etc/nginx/genai-templates:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./web:/usr/share/nginx/html:ro
+    # 起動時に config.js を .env から envsubst 生成 → 公式 entrypoint で nginx 起動。
+    # html は read-only マウントのため書込可パス（/var/lib/genai-web）へ生成し default.conf で alias。
+    # envsubst の対象変数を明示し、conf 内の nginx 変数（$uri 等）を誤展開しない。
+    # （$$ は compose のリテラル $ エスケープ）
+    # 機能 ON/OFF（profile 連動）：envsubst は条件分岐できないため、事前に POSIX sh で COMPOSE_PROFILES を
+    # 解析し enabledUseCases の JSON を組む。ENABLED_USE_CASES が明示されていればそれを優先（方式 c）。
+    # chat は常時 on（base+llm 前提・ゲートしない）。generate/translate/diagram は llm、image は image、
+    # transcribe は transcribe、rag は embedding、apps（ExApp 非同期実行）は queue profile で点灯。
+    command:
+      - /bin/sh
+      - -c
+      - |
+        mkdir -p /var/lib/genai-web
+        if [ -z "$$ENABLED_USE_CASES" ]; then
+          p=",$${COMPOSE_PROFILES},"
+          gen=false; img=false; tr=false; rag=false; apps=false; ci=false
+          case "$$p" in *,llm,*) gen=true ;; esac
+          case "$$p" in *,image,*) img=true ;; esac
+          case "$$p" in *,transcribe,*) tr=true ;; esac
+          case "$$p" in *,embedding,*) rag=true ;; esac
+          case "$$p" in *,queue,*) apps=true ;; esac
+          case "$$p" in *,sandbox,*) ci=true ;; esac
+          ENABLED_USE_CASES="{\"chat\":true,\"generate\":$$gen,\"translate\":$$gen,\"diagram\":$$gen,\"image\":$$img,\"transcribe\":$$tr,\"rag\":$$rag,\"apps\":$$apps,\"codeInterpreter\":$$ci}"
+        fi
+        export ENABLED_USE_CASES
+        envsubst '$$MODEL_IDS $$IMAGE_GENERATION_MODEL_IDS $$ENABLED_USE_CASES' \
+          < /etc/nginx/genai-templates/config.js.template \
+          > /var/lib/genai-web/config.js
+        exec /docker-entrypoint.sh nginx -g 'daemon off;'
+    ports:
+      # 外部公開は nginx のみ。既定 localhost。LAN 公開は HTTP_BIND を 192.168.x.x に。
+      # ホスト ufw/iptables の補助制限は別途デプロイ手順書を参照。
+      - '${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-80}:80'
+      - '${HTTP_BIND:-127.0.0.1}:${HTTPS_PORT:-443}:443'
+      # S3（SeaweedFS）専用エンドポイント（FileStorage、prefix なし方式）。
+      # presigned URL のブラウザ直 I/O 用。S3_PUBLIC_ENDPOINT の host:port と一致させる。
+      - '${HTTP_BIND:-127.0.0.1}:${S3_PORT:-8443}:8443'
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - genai_internal
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:8080/healthz || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # 開発用 SMTP（SES 代替）。Keycloak からのメールを受信。本番は外部 SMTP へ切替。
+  mailpit:
+    image: axllent/mailpit:v1.30.2@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: '1'
+      MP_SMTP_AUTH_ALLOW_INSECURE: '1'
+    ports:
+      # Web UI は localhost のみ。SMTP(1025) は内部ネットワークのみ。
+      - '${HTTP_BIND:-127.0.0.1}:${MAILPIT_UI_PORT:-8025}:8025'
+    networks:
+      - genai_internal
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8025/livez']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ログ閲覧 UI（CloudWatch 代替）。
+  # セキュリティ必須セット：localhost バインド + simple 認証 + docker.sock:ro + actions/shell 無効 + NO_ANALYTICS。
+  dozzle:
+    image: amir20/dozzle:v10.6.6@sha256:2e14180fa14c195b8e86705b7ab2234b87599215bcf06f7f56396cb45f57f963
+    environment:
+      DOZZLE_NO_ANALYTICS: 'true'
+      DOZZLE_ENABLE_ACTIONS: 'false'
+      DOZZLE_ENABLE_SHELL: 'false'
+      DOZZLE_AUTH_PROVIDER: simple
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # simple 認証ユーザー定義。実ファイルは dozzle/users.yml（手動生成・.gitignore）。
+      # 生成：docker run --rm amir20/dozzle:v10.5.3 generate <user> --password <pw> --name <name> > dozzle/users.yml
+      - ./dozzle/users.yml:/data/users.yml:ro
+    ports:
+      - '${HTTP_BIND:-127.0.0.1}:${DOZZLE_PORT:-9980}:8080'
+    networks:
+      - genai_internal
+    healthcheck:
+      test: ['CMD', '/dozzle', 'healthcheck']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---- LLM / embedding 系（profile: llm / embedding、定義のみ・起動任意） -----------------
+
+  # ローカル LLM 推論（Bedrock 代替）。chat LLM 専用（embedding は tei が担当）。
+  # 具体モデルは未固定（運用者が任意に pull）。chat 用途では Gemma 系を許容
+  # （Gemma 利用規約＝非 OSI／Apache 2.0 ではない）。
+  # embedding では Gemma を除外（tei + ruri-v3、整合は README 参照）。
+  # Apache-2.0 代替は Mistral 系等。Gemma 利用は Prohibited Use Policy 遵守が条件。
+  ollama:
+    image: ollama/ollama:0.30.10@sha256:bfc9c6d53cc6989aa5131a6fde6b162b2802d4d337657f3253b5f69579bddeee
+    profiles: ['llm']
+    environment:
+      # 既定 context 長（トークン）。既定は ollama 同等の 4096（chat 中心の常用負荷で省メモリ・modest HW で
+      # スワップしにくい安全側）。ダイアグラム生成等の大きいプロンプト（〜7千トークン）はこの既定だと切り詰められ
+      # 図が出ない。十分な RAM（16GB+ 目安）がある環境では .env で `OLLAMA_CONTEXT_LENGTH=8192` 等に上げると
+      # 切り詰めが解消する（KV キャッシュ分メモリ増・低メモリ機ではスワップで逆効果になり得る）。
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-4096}
+      # 常駐モデル数の上限。既定 1（低 RAM 単一ボックス向け安全側）。チャットのタイトル生成等は
+      # 既定モデルを使うため、利用者が別モデルを選ぶと 2 モデルが同時ロードされ得る（例：選択 ELYZA-8B
+      # ＋既定 gemma の二重常駐で 11GB 機が OOM/スワップ枯渇）。1 にすると新モデルのロード時に旧モデルを
+      # 自動アンロードして衝突を防ぐ。RAM に余裕がある環境（16GB+）では .env で 2 以上に上げてよい。
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - genai_internal
+    restart: unless-stopped
+    logging: *default-logging
+
+  # テキスト埋め込み serving（embedding、非 Ollama・TEI）。
+  # ruri-v3-310m（cl-nagoya、ModernBERT、Apache-2.0）を公式 safetensors から serving。
+  # CPU 版（GPU 不問）。
+  # ① warmup OOM 対処（必須・live e2e で確定）：TEI 既定の --max-batch-tokens=16384 は warmup で
+  #    最大バッチ分のメモリ（ModernBERT のグローバル注意は O(N^2)）を確保し、非力なホスト（例 7.8GB）では
+  #    warmup 中に OOM-kill（exit 137）→再起動ループに陥る。低メモリ機で動くことを
+  #    満たすため warmup バッチを絞る：--max-batch-tokens 4096 / --max-client-batch-size 8。
+  # ② ONNX/ORT 経路：ruri-v3-310m（ModernBERT）の公式リポは safetensors のみ＝ONNX 非同梱。
+  #    TEI cpu イメージは ORT(ONNX) が主経路（candle/CPU フォールバックより安定・低メモリ）。公式 safetensors
+  #    から自前で ONNX をエクスポートし（scripts/export-ruri-onnx.sh、第三者 ONNX 非依存・Apache-2.0 由来明確）、
+  #    その出力（onnx/model.onnx 含む）を bind mount しローカルパス --model-id で読み込む。生成は一度きり
+  #    （成果物はホスト ./tei/models、git 非追跡）。
+  # ※ api 側 EMBEDDING_MODEL_ID（リクエスト model 名）は cl-nagoya/ruri-v3-310m のまま。TEI はロード済みの
+  #   単一モデルを返すためリクエストの model 値は無視され、両者の不一致は問題にならない。
+  # ③ int8 量子化（RAG 高速化）：CPU 既定で ingest 約29 chunk/分が
+  #    課題のため、fp32 ONNX を dynamic int8 量子化した版（scripts/quantize-onnx-int8.sh が
+  #    ./tei/models/ruri-v3-310m-onnx-int8 へ生成）を既定採用する。実測（法令20問）で ingest・rerank
+  #    とも ×2.39 高速化、精度は Hit@1 90→80%・MRR 0.950→0.858（-10pt を許容＝速度優先）。**既定 model-id は int8**。
+  #    fp32 へ即時切戻したい場合のみ env で上書き（A/B 比較・切戻し可）：
+  #      EMBEDDING_MODEL_PATH=/models/ruri-v3-310m-onnx docker compose --profile embedding up -d --force-recreate tei
+  #    なお retrieve レイテンシは embedding でなく pg_bigm 全文検索が律速＝量子化効果は ingest 側に出る（実測）。
+  tei:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30878eceb72aaf32024d26fa2b1d04a75304fa0b4776b49aa1941fea07
+    # 機能 ON/OFF（profile 連動）：RAG を独立トグルにするため embedding 専用 profile。
+    # 以前は ['llm','embedding']（chat 起動で常駐）だったが、tei＋LLM の同時常駐は低メモリ機で OOM
+    # （README システム要件）。chat は ollama のみで軽量化し、
+    # RAG は embedding profile で明示 opt-in（実用時は `--profile llm,embedding`）。
+    profiles: ['embedding']
+    command:
+      - '--model-id'
+      - '${EMBEDDING_MODEL_PATH:-/models/ruri-v3-310m-onnx-int8}'
+      - '--port'
+      - '80'
+      - '--max-batch-tokens'
+      - '${EMBEDDING_MAX_BATCH_TOKENS:-4096}'
+      - '--max-client-batch-size'
+      - '${EMBEDDING_MAX_CLIENT_BATCH_SIZE:-8}'
+    volumes:
+      - tei_data:/data
+      # 自前エクスポートした ONNX 入りモデル（読み取り専用）。scripts/export-ruri-onnx.sh が生成。
+      - ./tei/models:/models:ro
+    networks:
+      - genai_internal
+    restart: unless-stopped
+    logging: *default-logging
+
+  # 再ランク（cross-encoder reranker、profile: rerank、リランカ導入・起動任意）。
+  # ruri-v3-reranker-310m（cl-nagoya・Apache-2.0・ModernBERT-Ja）を TEI が sequence-classification として
+  # 自動検出し /rerank を提供。検証で法令ドメイン Hit@1≒45%・Hit@10=95% と判明＝top-10 を cross-encoder
+  # で並べ替え Hit@1 へ変換する最有力レバー。モデルは scripts/export-ruri-reranker-onnx.sh が生成（手動 DL）。
+  # api 側 rerank seam は未実装のため、現状は scripts/bench-rag-law-rerank.mjs が直接 /rerank を叩いて効果測定。
+  # int8 量子化（RAG 高速化）：rerank は fp32 で 35〜43秒/クエリ
+  # （候補20）とクエリ時の重い処理＝事前 dump では救えないため量子化が要。scripts/quantize-onnx-int8.sh が
+  # ./tei/models/ruri-v3-reranker-310m-onnx-int8 を生成。実測で rerank 40.7→17.0秒（×2.39）。
+  # **既定 model-id は int8**。fp32 へ切戻したい場合のみ env で上書き：
+  #   RERANKER_MODEL_PATH=/models/ruri-v3-reranker-310m-onnx docker compose --profile rerank up -d --force-recreate tei-reranker
+  tei-reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30878eceb72aaf32024d26fa2b1d04a75304fa0b4776b49aa1941fea07
+    profiles: ['rerank']
+    command:
+      - '--model-id'
+      - '${RERANKER_MODEL_PATH:-/models/ruri-v3-reranker-310m-onnx-int8}'
+      - '--port'
+      - '80'
+      - '--max-batch-tokens'
+      - '${RERANKER_MAX_BATCH_TOKENS:-4096}'
+      - '--max-client-batch-size'
+      - '${RERANKER_MAX_CLIENT_BATCH_SIZE:-512}'
+    volumes:
+      - tei_reranker_data:/data
+      - ./tei/models:/models:ro
+    networks:
+      - genai_internal
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---- 画像生成系（profile: image、ImageClient 実配線・起動任意） -------------
+
+  # 画像生成サーバ（stable-diffusion.cpp / sd-server、Bedrock 画像モデル代替）。
+  # generateImage #14 が ImageClient seam（src/image/）経由で /sdcpp/v1/img_gen を叩く。MIT・CPU 推論
+  # （GPU 不問）。ollama と同じく profile（既定 up 外）＝api は sdcpp 不在でも起動し、生成実行時に
+  # のみ接続する（未起動時は接続エラー）。利用手順：
+  #   1) モデル（SD1.5 base 等の .safetensors / .gguf）を ./sdcpp/models/ に配置（任意手動 DL）
+  #   2) docker compose --profile image up -d sdcpp
+  # inpaint / ControlNet は対応モデルの追加配置＋起動フラグが要る（README 参照、未配置時は api が 501 で明示）。
+  # 公式 prebuilt サーバイメージが無いため自前ビルド（sdcpp/Dockerfile で ref 固定）。
+  sdcpp:
+    build:
+      context: ./sdcpp
+      dockerfile: Dockerfile
+    image: genai-sdcpp-onpre:sd-server
+    profiles: ['image']
+    # sd-server（ggml）は生成時に自身の /proc/<pid>/map_files を開く。その open はカーネルで
+    # CAP_SYS_ADMIN または CAP_CHECKPOINT_RESTORE を要求し、コンテナ既定では EPERM
+    # （filesystem error: Operation not permitted [./proc/1/map_files/...]）で生成が 500 になる。
+    # 最小権限の CHECKPOINT_RESTORE（kernel 5.9+）のみ付与で解決（SYS_ADMIN/seccomp 解除は不要）。
+    cap_add:
+      - CHECKPOINT_RESTORE
+    # 起動引数：モデルパス（-m）＋待受（--listen-ip/--listen-port）。SDCPP_BASE_URL の host:port と一致させる。
+    command:
+      - '-m'
+      - '/models/${SDCPP_MODEL_FILE:-v1-5-pruned-emaonly.safetensors}'
+      - '--listen-ip'
+      - '0.0.0.0'
+      - '--listen-port'
+      - '8080'
+    volumes:
+      # モデル配置先（bind mount＝運用者がファイルを置きやすい。実モデルは .gitignore で非追跡）。
+      - ./sdcpp/models:/models
+    networks:
+      - genai_internal
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---- Code Interpreter サンドボックス（profile: sandbox、任意コード実行・起動任意） ----
+
+  # api（code-interpreter ユースケース）が CSV/Excel→pandas→matplotlib チャートを委譲する隔離実行サービス。
+  # NsJail（Apache-2.0）で隔離。snekbox（MIT）設計参考。ollama/sdcpp と同じく profile（既定 up 外）＝
+  # api は不在でも起動し、実行時にのみ接続する。任意コード実行ゆえ多層防御で絞る（詳細・脅威モデル・最小 CAP の
+  # PoC 手順は docs/sandbox-threat-model.md / docs/sandbox-poc-runbook.md）。
+  #   起動例: COMPOSE_PROFILES=llm,sandbox docker compose up -d
+  sandbox:
+    build:
+      context: ./sandbox
+      dockerfile: Dockerfile
+    image: genai-sandbox-onpre:nsjail-py313
+    profiles: ['sandbox']
+    # CAP 集合（PoC 実機確定 2026-06-02・docs/sandbox-poc-runbook.md 確定値表）:
+    #   SYS_ADMIN = mount/pivot_root/新 namespace 構築、SETUID/SETGID = 子を nobody(65534) に落とす setuid、
+    #   SETPCAP = nsjail の securebits 操作（特権降格の固定化）。userns 化（CAP ゼロ）は本環境では uid_map 書込が
+    #   カーネルに一律拒否されるため不可（clone_newuser:false）。NET_ADMIN は iface_no_lo で回避。
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN
+      - SETUID
+      - SETGID
+      - SETPCAP
+    security_opt:
+      # PoC 実機確定: 本環境は Docker 既定 seccomp が CAP_SYS_ADMIN 保持下でも nsjail の pivot_root を EPERM で
+      # 阻むため unconfined が必要。代償（外側 seccomp 喪失）は nsjail の namespace 隔離・setuid・rootfs ro・
+      # network off・rlimit で多層補償。さらなるハードニング（nsjail 内 kafel seccomp／custom 外側 profile）は
+      # docs/sandbox-threat-model.md の後続候補。no-new-privileges は nsjail の setuid 降格（PR_SET_SECUREBITS）を
+      # 阻むため付与しない（子は nsjail が無権限 nobody に確実に落とす）。apparmor は既定のままで動作確認済（緩和不要）。
+      - seccomp:unconfined
+    # compose 層でもルート read-only ＋書込可は tmpfs のみ（NsJail 層と二重）。
+    read_only: true
+    tmpfs:
+      # 作業ディレクトリ（server.py が job ごとに mkdtemp）と matplotlib 等の一時領域。
+      - /tmp:size=256m,mode=1777
+    mem_limit: 1536m       # 要 PoC: pandas/matplotlib のピークで OOM しない値に調整。
+    pids_limit: 256
+    cpus: '2.0'
+    environment:
+      # 任意コード実行のリスク ack（entrypoint.sh のゲート）。未設定なら sandbox は警告バナーを出して
+      # 起動を中止する＝profile sandbox を立てる開発者への二段確認（docs/sandbox-acceptance-decision.md §7）。
+      SANDBOX_ACCEPT_RISK: ${SANDBOX_ACCEPT_RISK:-}
+      SANDBOX_PORT: '8080'
+      SANDBOX_MAX_CONCURRENCY: ${SANDBOX_MAX_CONCURRENCY:-4}
+      SANDBOX_WALL_MS: ${SANDBOX_WALL_MS:-60000}
+      SANDBOX_MAX_OUTPUT_BYTES: ${SANDBOX_MAX_OUTPUT_BYTES:-262144}
+      SANDBOX_MAX_FILE_BYTES: ${SANDBOX_MAX_FILE_BYTES:-8388608}
+    networks:
+      - genai_internal
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'python3 -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(''http://127.0.0.1:8080/healthz'',timeout=2).status==200 else 1)"'
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---- 文字起こし系（profile: transcribe、TranscriptionClient 実配線・起動任意） ----
+
+  # 文字起こしサーバ（faster-whisper-server＝speaches、AWS Transcribe 代替）。
+  # startTranscription #18 が起票したジョブを worker（pollTranscriptionStatus）が OpenAI 互換の
+  # /v1/audio/transcriptions で叩く。MIT・CPU 推論（GPU 不問）。ollama/sdcpp と同じく profile
+  # （既定 up 外）＝api/worker は whisper 不在でも起動し、文字起こし実行時にのみ接続する（未起動時は
+  # 接続エラー＝worker が retryable 扱いで再配信）。**speaches はモデルを自動 DL しない**（未 pull の
+  # モデルを要求すると 404→api は FAILED）。WHISPER_MODEL を事前に pull する必要がある（HF から DL し
+  # whisper_hf_cache に保持）。利用手順（詳細は README「文字起こしモデルの pull」）：
+  #   docker compose --profile transcribe --profile queue up -d whisper worker
+  #   docker run --rm --network <proj>_genai_internal curlimages/curl \
+  #     -X POST http://whisper:8000/v1/models/<WHISPER_MODEL>
+  whisper:
+    image: ghcr.io/speaches-ai/speaches:0.8.3-cpu@sha256:21e3df06d842fb7802ab470dd77c25f0e8c0d22950e8d8c6ae886e851af53ef8
+    profiles: ['transcribe']
+    volumes:
+      # HuggingFace モデルキャッシュ（再 DL 可・再起動で消えても良い設計）。speaches の既定キャッシュ先。
+      - whisper_hf_cache:/home/ubuntu/.cache/huggingface/hub
+    networks:
+      - genai_internal
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---- サンプル ExApp（profile: example、ExApp 実行配線の e2e 検証用・本番では起動しない） ------
+  # 最小 echo ExApp（依存ゼロの Node 標準サーバ）。worker から内部名 http://echo-exapp:3000 で到達する。
+  # SSRF ガード上、単一ラベル内部ホスト＝既定で拒否されるため、検証時は次を .env に設定する：
+  #   EXAPP_ALLOW_PRIVATE_ENDPOINTS=true / EXAPP_ENDPOINT_ALLOWLIST=echo-exapp
+  # 起動：docker compose --profile queue --profile example up -d
+  echo-exapp:
+    image: node:24.17.0-alpine@sha256:156b55f92e98ccd5ef49578a8cea0df4679826564bad1c9d4ef04462b9f0ded6
+    profiles: ['example']
+    command: ['node', '/app/server.mjs']
+    working_dir: /app
+    environment:
+      PORT: '3000'
+      # 検証で apiKey 突合する場合に設定（登録時の apiKey と一致させる）。空なら検証しない。
+      EXAPP_EXPECTED_API_KEY: ${ECHO_EXAPP_API_KEY:-}
+      ASYNC_COMPLETE_AFTER: ${ECHO_ASYNC_COMPLETE_AFTER:-2}
+    volumes:
+      - ./examples/echo-exapp/server.mjs:/app/server.mjs:ro
+    networks:
+      - genai_internal
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ---- キュー系（profile: queue、定義のみ・起動任意） ----------------------
+
+  # ElasticMQ 永続化 volume の所有権初期化（一回限り）。elasticmq は uid 999 で実行されるが
+  # named volume /data は root 所有を継承するため、起動前に 999 へ chown する。
+  # 既存スタックの nginx alpine を流用（新規 OSS を増やさない。BSD-2-Clause、LICENSES 計上済）。
+  elasticmq-init:
+    image: nginx:1.30.3-alpine3.23@sha256:1bbb1c7ee25067dafc126f7fa39437876283dfa439bbd12df6a5ecd99dc675e4
+    profiles: ['queue']
+    user: "0:0"
+    entrypoint: ['/bin/sh', '-c']
+    command: ['chown -R 999:999 /data']
+    volumes:
+      - elasticmq_data:/data
+    networks:
+      - genai_internal
+    restart: 'no'
+
+  # SQS 互換キュー（SQS 代替）。キュー定義 + DLQ + 永続化。
+  # ExApp 非同期ポーリング用。opt-in：`docker compose --profile queue up -d` で起動。
+  elasticmq:
+    image: softwaremill/elasticmq:1.7.1@sha256:f1de391a9b8c18fd3f2ce37b4f7d1b8989857e8a8e18bb01284fff899e69da82
+    profiles: ['queue']
+    depends_on:
+      elasticmq-init:
+        condition: service_completed_successfully
+    volumes:
+      - elasticmq_data:/data
+      # 設定（キュー genai-exapp-async + DLQ、永続化）。:1.7.1 は /opt/elasticmq.conf を自動読込。
+      - ./elasticmq/elasticmq.conf:/opt/elasticmq.conf:ro
+    # 永続化 DB（H2）を /data に書き出すため作業ディレクトリを /data に。
+    working_dir: /data
+    networks:
+      - genai_internal
+    restart: unless-stopped
+    logging: *default-logging
+
+  # 非同期ワーカー（pollExAppStatus ＋ pollTranscriptionStatus）。
+  # api と同一イメージを別コマンドで起動し、ElasticMQ の 2 キューを並走ポーリングする（1 プロセス・main.ts）：
+  #   1) ExApp 実行状態確認：受信ジョブの履歴キーで invoke_ex_app_histories を更新（success/error）。
+  #   2) 文字起こし：jobName で transcription_jobs を引き、音声を SeaweedFS から DL → faster-whisper →
+  #      正規化 → COMPLETED 書き戻し。音声 DL に S3 内部 client・AUDIO_BUCKET_NAME、
+  #      Whisper 接続に WHISPER_* が要る。whisper は profile transcribe（任意起動）＝未起動時は接続エラーを
+  #      retryable 扱いで再配信。
+  # キュー前提のため profile: queue（`docker compose --profile queue up -d` で api とともに起動）。
+  worker:
+    build:
+      context: ../genai-ai-api-onpre
+      dockerfile: Dockerfile
+    image: genai-ai-api-onpre:m1-4
+    profiles: ['queue']
+    command: ['node', 'dist/workers/main.js']
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # キュー（api と同一の .env 経路）。
+      SQS_ENDPOINT: ${SQS_ENDPOINT}
+      AWS_REGION: ${AWS_REGION}
+      EXAPP_QUEUE_URL: ${EXAPP_QUEUE_URL}
+      TRANSCRIBE_QUEUE_URL: ${TRANSCRIBE_QUEUE_URL:-http://elasticmq:9324/000000000000/genai-transcribe-async}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      # 業務 DB（履歴更新・文字起こしジョブ状態に必須）。POSTGRES_PASSWORD から組み立て（api と同一・重複回避）。
+      DATABASE_URL: postgresql://${POSTGRES_USER:-genai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-genai}
+      # オブジェクトストレージ（文字起こしの音声 DL＝内部 client のみ。presign 公開 endpoint は worker では不要）。
+      S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:8333}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-genai-s3-dev-key}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-genai-s3-dev-secret-change-me}
+      AUDIO_BUCKET_NAME: ${AUDIO_BUCKET_NAME:-genai-audio}
+      # 文字起こしバックエンド（faster-whisper-server＝speaches、api と同一の .env 経路）。
+      TRANSCRIPTION_BACKEND: ${TRANSCRIPTION_BACKEND:-faster-whisper}
+      WHISPER_BASE_URL: ${WHISPER_BASE_URL:-http://whisper:8000/v1}
+      WHISPER_MODEL: ${WHISPER_MODEL:-deepdml/faster-whisper-large-v3-turbo-ct2}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-}
+      WHISPER_TIMEOUT_MS: ${WHISPER_TIMEOUT_MS:-600000}
+      # ExApp 外部呼び出し（worker が endpoint を実際に叩く＝本実装）。artifacts(base64)・閾値超 outputs は
+      # artifacts バケットへ退避（内部 client で putObject）。apiKey は ex_app_api_keys から getApiKey して復号
+      # （暗号鍵 EXAPP_APIKEY_ENC_KEY は api と同一値・任意。未設定なら平文運用）。
+      ARTIFACTS_BUCKET_NAME: ${ARTIFACTS_BUCKET_NAME:-genai-artifacts}
+      EXAPP_APIKEY_ENC_KEY: ${EXAPP_APIKEY_ENC_KEY:-}
+      # SSRF ガード：既定は private/localhost 拒否（安全側）。ローカル ExApp を叩くには allow=true ＋ allowlist。
+      EXAPP_ALLOW_PRIVATE_ENDPOINTS: ${EXAPP_ALLOW_PRIVATE_ENDPOINTS:-false}
+      EXAPP_ENDPOINT_ALLOWLIST: ${EXAPP_ENDPOINT_ALLOWLIST:-}
+      EXAPP_HTTP_TIMEOUT_MS: ${EXAPP_HTTP_TIMEOUT_MS:-30000}
+      EXAPP_ARTIFACT_THRESHOLD_BYTES: ${EXAPP_ARTIFACT_THRESHOLD_BYTES:-10240}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # スキーマ適用完了後に起動（migrate init サービス、運用ハードニング）。
+      migrate:
+        condition: service_completed_successfully
+      elasticmq:
+        condition: service_started
+      # 文字起こしの音声 DL に必要（既定 profile・常時起動）。
+      seaweedfs:
+        condition: service_healthy
+    networks:
+      - genai_internal
+    restart: unless-stopped
+    logging: *default-logging
+
+# ============================================================================
+# ネットワーク（全サービス内部 bridge、外部公開は nginx のみ）
+# ============================================================================
+networks:
+  genai_internal:
+    driver: bridge
+
+# ============================================================================
+# ボリューム
+# ============================================================================
+volumes:
+  postgres_data:      # 業務 DB + ベクトル（最高重要度）
+  keycloak_db_data:   # 認証データ
+  seaweedfs_data:     # アップロードファイル
+  ollama_models:      # LLM モデル（再 DL 可）
+  tei_data:           # embedding モデルキャッシュ（再 DL 可）
+  tei_reranker_data:  # reranker モデルキャッシュ（再 DL 可・profile rerank）
+  whisper_hf_cache:   # 文字起こしモデル（HF キャッシュ・再 DL 可）
+  elasticmq_data:     # キュー（再起動で失っても良い設計）
+
+# ============================================================================
+# docker secrets 参照雛形（秘密値は docker secrets）
+# ----------------------------------------------------------------------------
+# 既定は .env 方式（秘密値を .env、非秘密値も .env）で起動・healthy 検証済み。
+# セキュリティハードニングでは下記の docker secrets 方式へ切替可能（参照雛形）。
+# secret 実ファイルは secrets/ に手動配置（.gitignore、テンプレートは secrets/*.example）。
+#
+# postgres は POSTGRES_PASSWORD_FILE をネイティブ対応。Keycloak は _FILE 非対応のため
+# entrypoint ラッパ等が必要（実配線は docker-compose.secrets.yml を参照）。
+#
+# secrets:
+#   postgres_password:
+#     file: ./secrets/postgres_password
+#   keycloak_db_password:
+#     file: ./secrets/keycloak_db_password
+#   keycloak_admin_password:
+#     file: ./secrets/keycloak_admin_password
+#
+# 例（postgres サービスでの参照）：
+#   postgres:
+#     environment:
+#       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+#     secrets:
+#       - postgres_password
+# ============================================================================

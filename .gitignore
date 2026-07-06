@@ -1,0 +1,74 @@
+# env（秘密値。.env.example はテンプレートとして commit する）
+.env
+.env.*
+!.env.example
+
+# TLS 証明書（scripts/gen-certs.sh で各環境ローカル生成。秘密鍵を含むため commit しない）
+certs/
+
+# docker secrets（実ファイル・テンプレ .example とも commit しない）。
+# .example も含め secrets/ 配下は scripts/gen-secrets.sh が生成する。
+# テンプレを静的 commit せず、必要な機密一覧の単一の定義元を
+# gen-secrets.sh に集約し、clone 後のセットアップで .example/実体ともスクリプト生成する（README §手順）。
+secrets/*
+
+# SeaweedFS／Keycloak の管理下設定ファイルは秘密値を焼くため
+# git 追跡しない（gen-secrets.sh がテンプレ → secrets/ 配下の実体を生成、docker-compose は secrets/ を mount）。
+# テンプレ（*.template.json）のみ追跡。
+seaweedfs/s3.config.json
+keycloak/import/genai-realm-realm.json
+
+# Dozzle simple 認証ユーザー定義（手動生成・bcrypt ハッシュ含む）
+dozzle/users.yml
+
+# web フロントエンドのビルド成果物（scripts/build-web.sh が genai-web-onpre から
+# 生成・配置。バイナリは同梱せずソースからビルドする方針）
+/web/
+
+# セキュリティスキャン出力（scripts/security-scan.sh、ローカル検証用・commit しない）
+security-reports/
+
+# 画像生成モデルの重み（容量大・運用者が手動 DL 配置。README/.gitkeep は追跡する）
+sdcpp/models/*
+!sdcpp/models/.gitkeep
+!sdcpp/models/README.md
+
+# 埋め込み ONNX モデル（scripts/export-ruri-onnx.sh が生成・約 1.2GB。再生成可能なので追跡しない）
+tei/models/*
+!tei/models/.gitkeep
+!tei/models/README.md
+
+# 法令 RAG 評価データ（e-gov 法令一括 DL 273MB・運用者が手動配置／egov_law_to_corpus.py が生成する
+# 中間 corpus。容量大・再生成可能なので追跡しない（法令 RAG の評価で使用）。
+all_xml.zip
+scripts/law-corpus.json
+
+# 法令 RAG 前処理スクラッチ（build_jsonl.sh が生成：展開 XML＋data.jsonl）。
+# 容量大・all_xml.zip から再生成可能なので追跡しない。
+.law-build/
+
+# 通称辞書の抽出中間物（運用者が all_xml から抽出。law-alias-build.mjs の入力・再生成可）。
+aliases-raw.json
+
+# 法令 RAG 配布 dump の生成/取得物（law-rag-export.sh が生成・law-rag-import.sh が取得。
+# 容量大・GitHub Releases で配布するため git では追跡しない）。
+dist/
+law-rag*.dump
+law-rag*.dump.part-*
+
+# 法令 RAG の一時調査スクリプト（採否未確定の診断用・追跡しない）。
+# 採用済みの eval/辞書スクリプト（law-rag-eval / law-retrieve-eval / law-alias-build /
+# law-alias-verify / law-alias-collision-audit）は tracked のまま残す。
+scripts/e2e-law-rag-http.mjs
+scripts/law-context-probe.mjs
+scripts/law-gen-grounding-ab.mjs
+scripts/law-pipeline-one.mjs
+scripts/law-precision-diag.mjs
+scripts/law-selector-raw.mjs
+
+# Python バイトコード（サンドボックスの構文チェック等で生成・再生成可能）
+**/__pycache__/
+*.pyc
+
+# OS
+**/.DS_Store

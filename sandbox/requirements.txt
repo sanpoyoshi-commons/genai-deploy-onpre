@@ -1,0 +1,10 @@
+# Python サンドボックスの分析ランタイム依存（HTTP wrapper は stdlib のみ＝ここには入れない）。
+# 用途は CSV/Excel→pandas→matplotlib チャート。バージョンはビルドで解決確認のうえ固定する
+# （脆弱性ウォッチ対象。OSV/pip-audit を CI に織り込む）。
+pandas==2.2.3
+numpy==2.2.1
+matplotlib==3.10.0
+openpyxl==3.1.5
+# matplotlib の推移的依存。未ピンだと既知脆弱性のある旧版に解決されうるため、
+# セキュリティ下限を明示（列挙アドバイザリの fixed をすべて満たす）。ビルドで互換確認のうえ固定。
+pillow>=12.2.0

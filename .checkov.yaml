@@ -1,0 +1,12 @@
+# checkov 設定（genai-deploy-onpre）
+#
+# CKV_SECRET 系の指摘（keycloak realm import / s3.config.json / tei tokenizer 等）は
+# すべて git 未追跡（.gitignore 済）＝リポジトリにコミットされない実行時生成物・ローカル機密。
+# 正準 gitleaks も Pass。スキャンノイズを減らすため対象パスを除外する。
+# （Dockerfile の CKV_DOCKER_3/7 は各 Dockerfile 内の #checkov:skip で根拠付き個別抑制）
+skip-path:
+  - secrets/                 # gen-secrets.sh が生成するローカル機密（gitignore 済）
+  - security-reports/        # スキャン成果物（過去の検出文字列を内包・gitignore 済）
+  - tei/models/              # ONNX モデル同梱の tokenizer_config.json（gitignore 済）
+  - keycloak/import/genai-realm-realm.json  # secrets 注入後の実体（gitignore 済・template のみ追跡）
+  - seaweedfs/s3.config.json # ローカル S3 資格（gitignore 済）

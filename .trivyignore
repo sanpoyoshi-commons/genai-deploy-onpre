@@ -1,0 +1,38 @@
+# trivy misconfig 抑制（genai-deploy-onpre）
+# 根拠は各 Dockerfile 内の #checkov:skip 注記と本ファイルの下記コメントに併記。
+#
+# AVD-DS-0002（Image user should not be 'root'）:
+#   postgres = 公式 entrypoint が gosu で実行時に非root(uid 999)へ降格／USER 固定は volume 初期化を壊す
+#   sandbox  = NsJail の namespace 構築に CAP_SYS_ADMIN が要り root 必須（子は jail 内 nobody へ降格）
+#   sdcpp    = sd-server が CAP_CHECKPOINT_RESTORE を要し非root では cap が effective にならない
+# いずれも設計上 root が必須または実行時降格のため、根拠付きで無視する。
+AVD-DS-0002
+
+# =============================================================================
+# image OS パッケージ層の CRITICAL（trivy image ゲート向け）。要評価日 2026-09-20。
+# 方針: 配信エッジ（nginx）は現行パッチで CRITICAL 0。下記は内部サービスの上流ベース
+# image に由来し、(a) ディストロが no-fix、または (b) 上流 image が再ビルド未公開のもの。
+# いずれも現行最新パッチへ再 pin 済みでも残存。期日到来時に再 scan し、上流の修正版
+# 公開・再ビルドを再確認すること（恒久 ignore にしない）。
+#
+# --- ディストロ no-fix（Debian bookworm / 該当ベース）。実行時の到達経路なし ---
+# perl 一式（pgvector base / TEI / sandbox python）。各サービスは perl を実行しない。
+CVE-2026-42496
+CVE-2026-8376
+# sqlite3（pgvector base 同梱・PostgreSQL は libsqlite3 を使用しない）
+CVE-2025-7458
+# zlib（pgvector base / TEI 同梱の長期 no-fix。内部サービスのみ）
+CVE-2023-45853
+#
+# --- 上流 image の再ビルド待ち（修正版はあるが上流 image 未反映）---
+# Go stdlib（pgvector tooling / postgres-alpine の gosu）。Go 1.24.13+ で修正済・上流再ビルド待ち
+CVE-2025-68121
+# TEI（RAG 埋め込み・profile rag・内部）の gnutls/openssl。Debian 修正版あり（deb12u7 / deb12u2）。
+# 上流 HF image が未再ビルドのため再 pin で解消せず＝記録。HF 再ビルド公開時に再 pin で解消する。
+CVE-2026-33845
+CVE-2026-42010
+CVE-2026-31789
+# whisper（音声認識・profile transcribe・内部）の h11（HTTP request smuggling）。h11 0.16.0 で修正済
+# だが上流 speaches 最新版（0.8.3）が未更新＝記録。内部のみ（api 経由・外部エッジ非到達）。
+# 上流 speaches の h11 更新版公開時に版付きタグへ再 pin で解消する。
+CVE-2025-43859

@@ -1,0 +1,91 @@
+// ============================================================================
+// genai サンドボックス 内側 seccomp ポリシー（kafel 構文）
+//
+//   目的 : 外側 docker seccomp=unconfined の代償（syscall 攻撃面拡大）を、nsjail 内側の
+//          seccomp フィルタで補償する（後続ハードニング① / docs/sandbox-threat-model.md 残存リスク節）。
+//
+//   方針 : DEFAULT ALLOW のデナリスト。Docker 既定 seccomp が「特権なしでは塞ぐ」危険 syscall 群を
+//          ERRNO(EPERM=1) で塞ぐ。子は既に jail 内 uid=nobody・無 CAP のためこれらの多くは元から
+//          EPERM になるが、CAP 不要で悪用しうる primitive（unshare(NEWUSER)/bpf/perf_event_open/
+//          keyctl/ptrace 等）を seccomp でも二重に塞ぐ（多層防御）。
+//
+//   nsjail は namespace 構築・pivot_root 等のセットアップ完了後・exec 直前に本フィルタを子へ適用する。
+//   よって pivot_root/mount/setuid 等の nsjail 自身のセットアップ syscall は阻害されない（子側のみ制限）。
+//
+//   ERRNO（KILL でなく）を選ぶ理由 : 正規コードが万一これらを probe しても EPERM で graceful degrade
+//          させる（「CAP が無い」のと同じ挙動）。本コードベースの graceful degradation 方針に整合。
+//
+//   除外して ALLOW のまま残すもの（壊さないため）:
+//     clone/clone3/fork/vfork（pandas/numpy のスレッド・matplotlib）/ personality（glibc が読取で使用）/
+//     prctl（既に nsjail が securebits で使用）/ socket 系（jail は network off で自然に塞がる）。
+//
+//   clone(CLONE_NEWUSER) の扱い（残存・中和済み）:
+//     スレッド生成のため clone/clone3 は ALLOW のまま＝引数フィルタでの CLONE_NEWUSER 遮断はしない
+//     （clone3 は flags が struct ポインタ内で seccomp から参照不可・kafel 引数構文の取り違えは
+//      パース失敗で nsjail 起動不能になるため、未検証の引数フィルタは入れない方針）。ただし本環境では
+//     カーネルが uid_map/gid_map 書込を一律 EPERM で拒否（nsjail.cfg の clone_newuser:false 注記参照）
+//     するため、子が新 user-ns を得ても uid マッピング不能＝権限昇格に繋がらない。加えて本 seccomp
+//     フィルタは fork/clone 後の子へも継承されるため、新 ns 内でも上記デナリストは効き続ける。
+//     根治（外側 custom seccomp で pivot_root のみ許可／gVisor 移行）は受容判断シート §5 の後続候補。
+//
+//   kafel 構文・syscall 名はいずれも長期安定（nsjail 3.4 同梱 kafel に存在）。未知名はパース失敗で
+//   nsjail 起動不可になるため、新顔（mount_setattr/open_tree/fsopen 等）は意図的に含めない。
+// ============================================================================
+
+POLICY genai_sandbox {
+  ERRNO(1) {
+    // --- 他プロセス覗き見・改ざん ---
+    ptrace,
+    process_vm_readv,
+    process_vm_writev,
+
+    // --- namespace 操作（user-ns 取得による権限昇格 primitive を含む） ---
+    unshare,
+    setns,
+
+    // --- マウント・rootfs 改変（jail は rootfs ro。再 pivot 阻止） ---
+    //     ※ amd64 NR166 はこの kafel では識別子 `umount`（`umount2` は未定義）。実機照合で確定。
+    mount,
+    umount,
+    pivot_root,
+
+    // --- カーネルモジュール ---
+    init_module,
+    finit_module,
+    delete_module,
+    create_module,
+
+    // --- システム制御 ---
+    kexec_load,
+    kexec_file_load,
+    reboot,
+    swapon,
+    swapoff,
+    acct,
+    quotactl,
+
+    // --- UTS（jail は独自 uts ns。子からの hostname/domainname 変更は不要） ---
+    sethostname,
+    setdomainname,
+
+    // --- 時刻設定（CAP_SYS_TIME 系・ホスト時刻汚染防止） ---
+    settimeofday,
+    clock_settime,
+    adjtimex,
+
+    // --- カーネル攻撃面が広い primitive（CAP 不要でも悪用余地） ---
+    bpf,
+    perf_event_open,
+
+    // --- カーネルキーリング ---
+    add_key,
+    request_key,
+    keyctl,
+
+    // --- I/O 特権（CAP_SYS_RAWIO 系） ---
+    iopl,
+    ioperm
+  }
+}
+
+USE genai_sandbox DEFAULT ALLOW

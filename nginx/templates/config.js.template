@@ -1,0 +1,16 @@
+// genai-deploy-onpre — 実行時アプリ設定（on-premise モデルメニュー可変化）
+// nginx の entrypoint が .env の値で envsubst 展開し /var/lib/genai-web/config.js を生成、
+// /config.js として配信する。web（packages/web/src/models.ts）が window.__APP_CONFIG__ を
+// 最優先で読むため、モデル一覧の変更が web 再 build 不要（.env 編集＋nginx 再起動）で反映される。
+// 値は .env の MODEL_IDS / IMAGE_GENERATION_MODEL_IDS（JSON 配列、例 ["mistral:7b","gemma4:e4b"]）。
+// api サービスと同一の .env 変数を共有＝モデル許可リストとセレクタの単一の参照元。
+// enabledUseCases は機能 ON/OFF（profile 連動）。entrypoint が COMPOSE_PROFILES から
+// 算出した JSON（chat/generate/translate/diagram/image/transcribe/rag/apps → bool）。profile を ON にすれば
+// 対応メニューも自動 ON になり、web の機能ゲート（isUseCaseEnabled）が build 不要でこの値に追従する。
+// dev（config.js 未配信）では web 側が build 時 VITE_APP_HIDDEN_USE_CASES へ fallback するため未定義でも無害。
+// 注：envsubst は明示変数のみ展開するため、この説明文中の変数名は置換されない。
+window.__APP_CONFIG__ = {
+  modelIds: ${MODEL_IDS},
+  imageGenModelIds: ${IMAGE_GENERATION_MODEL_IDS},
+  enabledUseCases: ${ENABLED_USE_CASES},
+};

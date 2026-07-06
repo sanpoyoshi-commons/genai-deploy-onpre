@@ -1,0 +1,7 @@
+# サンドボックス既定の matplotlib 設定。
+# - backend=Agg: GUI 無し（ファイル保存のみ）。サンドボックスにディスプレイは無い。
+# - font.family=IPAexGothic: 日本語ラベルを文字化けさせない（IPAex Gothic を同梱・登録済）。
+#   頭脳 LLM にフォント指定コードを書かせず、既定で日本語が出る状態にしておく（堅牢化）。
+backend: Agg
+font.family: IPAexGothic
+axes.unicode_minus: False
