@@ -1,7 +1,7 @@
 # LICENSES-THIRD-PARTY
 
 本ディレクトリは、`genai-deploy-onpre` の `docker-compose.yml` が起動する同梱 OSS
-（コンテナイメージ）の第三者ライセンスを集約・保全します。
+（コンテナイメージ）の第三者ライセンスを集約・保全します（CLAUDE.md §6）。
 
 本配布物は各 OSS の**ソースコードを再配布せず**、公開レジストリから**コンテナイメージを
 取得して起動**します。本ディレクトリは、各 OSS の**上流が配布する LICENSE / NOTICE
@@ -18,21 +18,21 @@
 - `<OSS>_<SPDX>.txt` — 上流の LICENSE 本文（逐語）
 - `<OSS>-NOTICE.txt` — 上流の NOTICE 本文（逐語、配布している OSS のみ）
 
-## 同梱 OSS 一覧（digest は 2026-05-25 一次取得、2026-06-20 の CVE 対応再 pin を 2026-07-06 反映）
+## 同梱 OSS 一覧（digest は 2026-05-25 一次取得、2026-06-20 の CVE 対応再 pin を 2026-07-06 反映、2026-07-12 定期棚卸し再 pin を反映）
 
 | OSS | バージョン | イメージ@digest | SPDX | 保全ファイル | 回収元タグ |
 |---|---|---|---|---|---|
 | PostgreSQL | 16.14 | `postgres:16.14-alpine@sha256:e013e867…5a28cb`（keycloak-db）/ pgvector 同梱（業務 DB） | PostgreSQL | [`PostgreSQL_PostgreSQL-License.txt`](./PostgreSQL_PostgreSQL-License.txt) | `REL_16_14`（COPYRIGHT） |
-| pgvector | 0.8.3 | `pgvector/pgvector:0.8.3-pg16@sha256:131dcf7f…6b74e6` | PostgreSQL | [`pgvector_PostgreSQL-License.txt`](./pgvector_PostgreSQL-License.txt) | `v0.8.3` |
+| pgvector | 0.8.5 | `pgvector/pgvector:0.8.5-pg16@sha256:1d533553…79f0fb` | PostgreSQL | [`pgvector_PostgreSQL-License.txt`](./pgvector_PostgreSQL-License.txt) | `v0.8.5` |
 | pg_bigm | v1.2-20250903 | postgres カスタムビルドで導入（`postgres/Dockerfile` でソースビルド） | PostgreSQL | [`pg_bigm_PostgreSQL-License.txt`](./pg_bigm_PostgreSQL-License.txt) | `v1.2-20250903` |
-| Keycloak | 26.6.3 | `quay.io/keycloak/keycloak:26.6.3@sha256:5fdbf2db…bc1dac` | Apache-2.0 | [`Keycloak_Apache-2.0.txt`](./Keycloak_Apache-2.0.txt) | `26.6.3` |
-| SeaweedFS | 4.34 | `chrislusf/seaweedfs:4.34@sha256:6620371e…d6c634` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.34` |
+| Keycloak | 26.6.4 | `quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7…8cbce4` | Apache-2.0 | [`Keycloak_Apache-2.0.txt`](./Keycloak_Apache-2.0.txt) | `26.6.4` |
+| SeaweedFS | 4.39 | `chrislusf/seaweedfs:4.39@sha256:c7d6c721…3c12c6` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.39` |
 | ElasticMQ | v1.7.1 | `softwaremill/elasticmq:1.7.1@sha256:f1de391a…69da82` | Apache-2.0 | [`ElasticMQ_Apache-2.0.txt`](./ElasticMQ_Apache-2.0.txt) / [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) | `v1.7.1`（`LICENSE.txt`＋NOTICE） |
-| Ollama | v0.30.10 | `ollama/ollama:0.30.10@sha256:bfc9c6d5…bddeee` | MIT | [`Ollama_MIT.txt`](./Ollama_MIT.txt) | `v0.30.10` |
+| Ollama | v0.31.2 | `ollama/ollama:0.31.2@sha256:509fdf54…c62c0a` | MIT | [`Ollama_MIT.txt`](./Ollama_MIT.txt) | `v0.31.2` |
 | Text Embeddings Inference (TEI) | v1.9.3 (cpu) | `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30…1fea07` | Apache-2.0 | [`TEI_Apache-2.0.txt`](./TEI_Apache-2.0.txt) | `v1.9.3` |
 | nginx | 1.30.3 stable | `nginx:1.30.3-alpine3.23@sha256:1bbb1c7e…c675e4` | BSD-2-Clause | [`nginx_BSD-2-Clause.txt`](./nginx_BSD-2-Clause.txt) | `release-1.30.3` |
-| Mailpit | v1.30.2 | `axllent/mailpit:v1.30.2@sha256:37a38e48…7d6dd6` | MIT | [`Mailpit_MIT.txt`](./Mailpit_MIT.txt) | `v1.30.2` |
-| Dozzle | v10.6.6 | `amir20/dozzle:v10.6.6@sha256:2e14180f…57f963` | MIT | [`Dozzle_MIT.txt`](./Dozzle_MIT.txt) | `v10.6.6` |
+| Mailpit | v1.30.4 | `axllent/mailpit:v1.30.4@sha256:5a49a77c…82d4f6` | MIT | [`Mailpit_MIT.txt`](./Mailpit_MIT.txt) | `v1.30.4` |
+| Dozzle | v10.6.9 | `amir20/dozzle:v10.6.9@sha256:6f464481…65866b` | MIT | [`Dozzle_MIT.txt`](./Dozzle_MIT.txt) | `v10.6.9` |
 | speaches | 0.8.3 (cpu) | `ghcr.io/speaches-ai/speaches:0.8.3-cpu@sha256:21e3df06…f53ef8` | MIT | [`speaches_MIT.txt`](./speaches_MIT.txt) | `v0.8.3` |
 | Node.js | v24.15.0 LTS | （api リポ自前ビルドのベースイメージ `node:24.15.0-alpine`） | Node.js（MIT 系） | [`Node.js_MIT.txt`](./Node.js_MIT.txt) | `v24.15.0` |
 
@@ -43,6 +43,15 @@
 > （版間で本文不変を実確認）。NOTICE の上流不存在（Keycloak／SeaweedFS／TEI／vLLM／NsJail）も
 > 新タグで再確認済み（取得時 404）。speaches（profile: transcribe、STT エンジン faster-whisper
 > 〔MIT〕同梱・Whisper モデルは運用者が実行時 pull）は 2026-07-06 に追加・逐語回収済。
+
+> **注（2026-07-12）**：定期棚卸しで再 pin（Keycloak 26.6.4〔CVE-2026-11800 認証バイパス等
+> セキュリティ修正 8 件〕／SeaweedFS 4.39／Ollama v0.31.2／Mailpit v1.30.4／Dozzle v10.6.9／
+> pgvector 0.8.5）。上表のバージョン・digest・回収元タグ列と
+> `scripts/fetch-third-party-licenses.sh` の取得タグに反映済み。NOTICE の上流不存在
+> （Keycloak 26.6.4／SeaweedFS 4.39）は新タグで再確認済み（NOTICE／NOTICE.txt とも 404）。
+> ライセンス本文は同スクリプトを 2026-07-12 に再実行して新タグから再回収済み（全件 version
+> タグから取得成功・main/master フォールバックなし）。**全ライセンス本文は旧タグ版と
+> バイト単位で同一**（版間で本文不変を実確認）。
 
 `Node.js_MIT.txt` は Node.js 本体（MIT）に加え、同梱される第三者コンポーネント
 （V8 / ICU / OpenSSL 等）のライセンスを上流 LICENSE がそのまま列挙しているため大容量です。
@@ -84,8 +93,8 @@ Apache-2.0 §4(d) の NOTICE 同梱義務は、本来「Work または Derivativ
 | OSS | NOTICE | 結果 |
 |---|---|---|
 | ElasticMQ | あり | [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) 逐語保全 |
-| Keycloak | なし | 上流タグ `26.6.3` に NOTICE ファイル無し（取得時 404 で確認・2026-07-06 再確認） |
-| SeaweedFS | なし | 上流タグ `4.34` に NOTICE ファイル無し（同上） |
+| Keycloak | なし | 上流タグ `26.6.4` に NOTICE ファイル無し（取得時 404 で確認・2026-07-12 再確認） |
+| SeaweedFS | なし | 上流タグ `4.39` に NOTICE ファイル無し（同上） |
 | TEI | なし | 上流タグ `v1.9.3` に NOTICE ファイル無し（同上） |
 | vLLM | なし | 上流タグ `v0.21.0` に NOTICE ファイル無し（同上） |
 | NsJail | なし | 固定 SHA `079d70dd…` のリポルートに NOTICE ファイル無し（GitHub contents API で確認・2026-06-02）。自前ビルドで同梱するが NOTICE 不存在のため §4(d) 義務は発生しない |

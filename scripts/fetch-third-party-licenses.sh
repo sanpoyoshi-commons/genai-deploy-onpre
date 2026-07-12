@@ -50,9 +50,9 @@ fetch_first "PostgreSQL_PostgreSQL-License.txt" \
   "https://raw.githubusercontent.com/postgres/postgres/REL_16_14/COPYRIGHT" \
   "https://raw.githubusercontent.com/postgres/postgres/master/COPYRIGHT"
 
-# --- pgvector 0.8.3 (PostgreSQL License) ---
+# --- pgvector 0.8.5 (PostgreSQL License) ---
 fetch_first "pgvector_PostgreSQL-License.txt" \
-  "https://raw.githubusercontent.com/pgvector/pgvector/v0.8.3/LICENSE" \
+  "https://raw.githubusercontent.com/pgvector/pgvector/v0.8.5/LICENSE" \
   "https://raw.githubusercontent.com/pgvector/pgvector/master/LICENSE"
 
 # --- pg_bigm v1.2-20250903 (PostgreSQL License; 導入予定) ---
@@ -60,21 +60,21 @@ fetch_first "pg_bigm_PostgreSQL-License.txt" \
   "https://raw.githubusercontent.com/pgbigm/pg_bigm/v1.2-20250903/LICENSE" \
   "https://raw.githubusercontent.com/pgbigm/pg_bigm/master/LICENSE"
 
-# --- Keycloak 26.6.3 (Apache-2.0) ---
+# --- Keycloak 26.6.4 (Apache-2.0) ---
 fetch_first "Keycloak_Apache-2.0.txt" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.3/LICENSE.txt" \
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.4/LICENSE.txt" \
   "https://raw.githubusercontent.com/keycloak/keycloak/main/LICENSE.txt"
 fetch_first "Keycloak-NOTICE.txt" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.3/NOTICE" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.3/NOTICE.txt"
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.4/NOTICE" \
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.4/NOTICE.txt"
 
-# --- SeaweedFS 4.34 (Apache-2.0) ---
+# --- SeaweedFS 4.39 (Apache-2.0) ---
 fetch_first "SeaweedFS_Apache-2.0.txt" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.34/LICENSE" \
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.39/LICENSE" \
   "https://raw.githubusercontent.com/seaweedfs/seaweedfs/master/LICENSE"
 fetch_first "SeaweedFS-NOTICE.txt" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.34/NOTICE" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.34/NOTICE.txt"
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.39/NOTICE" \
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.39/NOTICE.txt"
 
 # --- ElasticMQ v1.7.1 (Apache-2.0) ---
 # 実ファイル名は LICENSE.txt（拡張子なし LICENSE は上流に無く 404。GitHub contents API で確認・2026-06-02）。
@@ -86,9 +86,9 @@ fetch_first "ElasticMQ-NOTICE.txt" \
   "https://raw.githubusercontent.com/softwaremill/elasticmq/v1.7.1/NOTICE" \
   "https://raw.githubusercontent.com/softwaremill/elasticmq/v1.7.1/NOTICE.txt"
 
-# --- Ollama v0.30.10 (MIT) ---
+# --- Ollama v0.31.2 (MIT) ---
 fetch_first "Ollama_MIT.txt" \
-  "https://raw.githubusercontent.com/ollama/ollama/v0.30.10/LICENSE" \
+  "https://raw.githubusercontent.com/ollama/ollama/v0.31.2/LICENSE" \
   "https://raw.githubusercontent.com/ollama/ollama/main/LICENSE"
 
 # --- Text Embeddings Inference v1.9.3 (Apache-2.0) ---
@@ -104,14 +104,14 @@ fetch_first "nginx_BSD-2-Clause.txt" \
   "https://raw.githubusercontent.com/nginx/nginx/release-1.30.3/LICENSE" \
   "https://nginx.org/LICENSE"
 
-# --- Mailpit v1.30.2 (MIT) ---
+# --- Mailpit v1.30.4 (MIT) ---
 fetch_first "Mailpit_MIT.txt" \
-  "https://raw.githubusercontent.com/axllent/mailpit/v1.30.2/LICENSE" \
+  "https://raw.githubusercontent.com/axllent/mailpit/v1.30.4/LICENSE" \
   "https://raw.githubusercontent.com/axllent/mailpit/develop/LICENSE"
 
-# --- Dozzle v10.6.6 (MIT) ---
+# --- Dozzle v10.6.9 (MIT) ---
 fetch_first "Dozzle_MIT.txt" \
-  "https://raw.githubusercontent.com/amir20/dozzle/v10.6.6/LICENSE" \
+  "https://raw.githubusercontent.com/amir20/dozzle/v10.6.9/LICENSE" \
   "https://raw.githubusercontent.com/amir20/dozzle/master/LICENSE"
 
 # --- speaches 0.8.3 (MIT; profile transcribe の STT serving・faster-whisper 同梱) ---

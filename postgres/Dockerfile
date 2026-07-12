@@ -1,15 +1,15 @@
 # syntax=docker/dockerfile:1
 # ============================================================================
 # genai-deploy-onpre: 業務 DB 用 PostgreSQL 16 カスタムイメージ
-#   ベース  : pgvector/pgvector:0.8.3-pg16（PostgreSQL 16.x + pgvector 0.8.3 同梱）
+#   ベース  : pgvector/pgvector:0.8.5-pg16（PostgreSQL 16.x + pgvector 0.8.5 同梱）
 #   追加    : pg_bigm（2-gram 全文検索）をソースからビルドして導入
 # 用途      : ハイブリッド検索基盤（pgvector + pg_bigm + RRF）。
 #             本イメージは「拡張が使える状態」までを担う（インフラ層）。
 #             RRF クエリ実装・チューニング（similarity_limit 等）は api/アプリ層が担う。
 # ============================================================================
 
-# ベースイメージは digest 固定（pgvector 0.8.3 / PostgreSQL 16）。
-ARG PGVECTOR_IMAGE=pgvector/pgvector:0.8.3-pg16@sha256:131dcf7ff6a900545df8e7e092c270aa8c6db2f2c818e408cb45ec21316b74e6
+# ベースイメージは digest 固定（pgvector 0.8.5 / PostgreSQL 16）。
+ARG PGVECTOR_IMAGE=pgvector/pgvector:0.8.5-pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
 FROM ${PGVECTOR_IMAGE}
 
 # --- セキュリティスキャン抑制（根拠付き・監査可能）---

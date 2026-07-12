@@ -35,16 +35,16 @@ docker-compose スタック構成（バージョン・ライセンス）
   | OSS       | バージョン       | ライセンス          | 用途                       |
   +-----------+-----------------+--------------------+---------------------------+
   | PostgreSQL| 16.14            | PostgreSQL License | リレーショナル DB          |
-  | pgvector  | 0.8.3            | PostgreSQL License | ベクトル検索拡張           |
+  | pgvector  | 0.8.5            | PostgreSQL License | ベクトル検索拡張           |
   | pg_bigm   | v1.2-20250903    | PostgreSQL License | 全文検索拡張               |
-  | Keycloak  | 26.6.3           | Apache License 2.0 | 認証・IdP                  |
-  | SeaweedFS | 4.34             | Apache License 2.0 | オブジェクトストレージ     |
+  | Keycloak  | 26.6.4           | Apache License 2.0 | 認証・IdP                  |
+  | SeaweedFS | 4.39             | Apache License 2.0 | オブジェクトストレージ     |
   | ElasticMQ | v1.7.1           | Apache License 2.0 | SQS 互換キュー             |
-  | Ollama    | v0.30.10         | MIT License        | ローカル LLM 推論（chat）  |
+  | Ollama    | v0.31.2          | MIT License        | ローカル LLM 推論（chat）  |
   | TEI       | v1.9.3 (cpu)     | Apache License 2.0 | テキスト埋め込み serving   |
   | nginx     | 1.30.3 stable    | BSD-2-Clause       | リバースプロキシ・TLS      |
-  | Mailpit   | v1.30.2          | MIT License        | 開発用 SMTP（同梱）        |
-  | Dozzle    | v10.6.6          | MIT License        | ログ閲覧 UI                |
+  | Mailpit   | v1.30.4          | MIT License        | 開発用 SMTP（同梱）        |
+  | Dozzle    | v10.6.9          | MIT License        | ログ閲覧 UI                |
   | speaches  | 0.8.3 (cpu)      | MIT License        | 文字起こし（STT serving）  |
   | Node.js   | v24.15.0 LTS     | Node.js License    | api リポ実行環境           |
   +-----------+-----------------+--------------------+---------------------------+

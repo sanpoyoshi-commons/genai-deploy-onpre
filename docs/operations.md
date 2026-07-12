@@ -178,6 +178,16 @@ git -C ../genai-web-onpre pull
 > **同梱 OSS イメージ**（postgres / keycloak / nginx 等）はバージョンを `docker-compose.yml` で
 > タグ＋SHA 固定。更新は同ファイルのタグ/digest を新版へ変更 → `docker compose pull` →
 > `docker compose up -d`。
+>
+> **pgvector を含む postgres イメージ更新時の注意**：`CREATE EXTENSION` は初回 initdb 時のみ
+> 実行されるため、**既存の DB ボリュームでは拡張のバージョンが古いまま残ります**（バイナリは
+> 新版・カタログ表記が旧版のねじれ）。イメージ更新後に一度だけ拡張を揃えてください：
+>
+> ```bash
+> docker compose exec postgres psql -U genai -d genai -c 'ALTER EXTENSION vector UPDATE;'
+> ```
+>
+> 新規環境（ボリューム新規作成）ではこの手順は不要です。
 
 ---
 

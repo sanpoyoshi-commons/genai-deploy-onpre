@@ -8,7 +8,7 @@
 #   - 画像生成（sdcpp）は profile: image で定義（起動任意・モデルは手動配置）
 #   - キュー（elasticmq）は profile: queue で定義（起動任意）
 #
-# バージョン固定：全イメージ タグ＋SHA(digest) 併記（digest は 2026-05-25 時点で取得）。
+# バージョン固定：全イメージ タグ＋SHA(digest) 併記（digest は 2026-07-12 再 pin 時点で取得）。
 # TLS：client→nginx 自己署名 HTTPS（外部）＋ nginx↔api 内部 TLS。
 #   証明書は `scripts/gen-certs.sh` で生成（certs/ は .gitignore）。各端末 rootCA 信頼登録は README 参照。
 #
@@ -45,13 +45,13 @@ services:
   # pg_bigm（全文検索拡張）は postgres/Dockerfile のカスタムビルドで導入済み。
   # 拡張有効化は postgres/initdb/01-extensions.sql（CREATE EXTENSION vector / pg_bigm）。
   postgres:
-    # pgvector 0.8.3 + pg_bigm v1.2-20250903 のカスタムイメージ。
+    # pgvector 0.8.5 + pg_bigm v1.2-20250903 のカスタムイメージ。
     # ベースイメージ digest は postgres/Dockerfile 内で固定。初回は build が必要：
     #   docker compose build postgres
     build:
       context: ./postgres
       dockerfile: Dockerfile
-    image: genai-postgres-onpre:pg16-pgvector0.8.3-pgbigm1.2
+    image: genai-postgres-onpre:pg16-pgvector0.8.5-pgbigm1.2
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-genai}
       POSTGRES_USER: ${POSTGRES_USER:-genai}
@@ -97,7 +97,7 @@ services:
   # 認証・IdP（Cognito 代替）。
   # nginx 前段 + 内部 HTTP の公式サポート構成。
   keycloak:
-    image: quay.io/keycloak/keycloak:26.6.3@sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac
+    image: quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4
     command: ['start', '--optimized=false', '--http-enabled=true', '--hostname-strict=false', '--proxy-headers=xforwarded', '--health-enabled=true', '--import-realm']
     environment:
       KC_DB: postgres
@@ -136,7 +136,7 @@ services:
 
   # オブジェクトストレージ（S3 互換、MinIO 代替）。at-rest 暗号化 ON。
   seaweedfs:
-    image: chrislusf/seaweedfs:4.34@sha256:6620371e8af8282056685c652d4637265698c9e2c2d59f9594e6ac333ad6c634
+    image: chrislusf/seaweedfs:4.39@sha256:c7d6c721b30ae711db766bbbfd40192776e263d4e51e22f57baef7bef93c12c6
     # -s3.config で S3 認証を有効化。creds の実体は gen-secrets.sh がテンプレ
     # （seaweedfs/s3.config.template.json）から secrets/s3.config.json として生成し本サービスに mount する
     # （秘密値の git 焼付回避）。本番は creds をローテーションして上書き。
@@ -160,7 +160,7 @@ services:
   # 冪等作成する。weed shell は master 経由で作成（S3 creds 不要）。既存バケットはエラーになるが無視する（|| true）。
   # seaweedfs image を流用（追加 image 不要）。バケット名は api の *_BUCKET_NAME と一致させる。
   seaweedfs-init:
-    image: chrislusf/seaweedfs:4.34@sha256:6620371e8af8282056685c652d4637265698c9e2c2d59f9594e6ac333ad6c634
+    image: chrislusf/seaweedfs:4.39@sha256:c7d6c721b30ae711db766bbbfd40192776e263d4e51e22f57baef7bef93c12c6
     depends_on:
       seaweedfs:
         condition: service_healthy
@@ -515,7 +515,7 @@ services:
 
   # 開発用 SMTP（SES 代替）。Keycloak からのメールを受信。本番は外部 SMTP へ切替。
   mailpit:
-    image: axllent/mailpit:v1.30.2@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6
+    image: axllent/mailpit:v1.30.4@sha256:5a49a77c5bdbe7c5474450b4f46348d09949df3695257729c93a30369382d4f6
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: '1'
       MP_SMTP_AUTH_ALLOW_INSECURE: '1'
@@ -536,7 +536,7 @@ services:
   # ログ閲覧 UI（CloudWatch 代替）。
   # セキュリティ必須セット：localhost バインド + simple 認証 + docker.sock:ro + actions/shell 無効 + NO_ANALYTICS。
   dozzle:
-    image: amir20/dozzle:v10.6.6@sha256:2e14180fa14c195b8e86705b7ab2234b87599215bcf06f7f56396cb45f57f963
+    image: amir20/dozzle:v10.6.9@sha256:6f4644814cce31e11fe80f2610515df6a5a2e40120b4087c298a72df8d65866b
     environment:
       DOZZLE_NO_ANALYTICS: 'true'
       DOZZLE_ENABLE_ACTIONS: 'false'
@@ -568,7 +568,7 @@ services:
   # embedding では Gemma を除外（tei + ruri-v3、整合は README 参照）。
   # Apache-2.0 代替は Mistral 系等。Gemma 利用は Prohibited Use Policy 遵守が条件。
   ollama:
-    image: ollama/ollama:0.30.10@sha256:bfc9c6d53cc6989aa5131a6fde6b162b2802d4d337657f3253b5f69579bddeee
+    image: ollama/ollama:0.31.2@sha256:509fdf54e23bd50d87af646cb51c0a7a203d6a83cc4d6695b3b08c5be1c62c0a
     profiles: ['llm']
     environment:
       # 既定 context 長（トークン）。既定は ollama 同等の 4096（chat 中心の常用負荷で省メモリ・modest HW で
@@ -792,7 +792,7 @@ services:
   #   EXAPP_ALLOW_PRIVATE_ENDPOINTS=true / EXAPP_ENDPOINT_ALLOWLIST=echo-exapp
   # 起動：docker compose --profile queue --profile example up -d
   echo-exapp:
-    image: node:24.17.0-alpine@sha256:156b55f92e98ccd5ef49578a8cea0df4679826564bad1c9d4ef04462b9f0ded6
+    image: node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd
     profiles: ['example']
     command: ['node', '/app/server.mjs']
     working_dir: /app
