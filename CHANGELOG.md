@@ -1,0 +1,31 @@
+# Changelog（変更履歴）
+
+利用者に影響する主要な変更を記録します。リリースタグは付けず日付ベースで記載します
+（同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
+既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
+
+## 2026-07-13
+
+### Docs
+
+- **WSL2 カーネル脆弱性対応の更新**（[docs/prerequisites.md](docs/prerequisites.md) A-6）— Copy Fail / Dirty Frag / Fragnesia は修正済みカーネルが配布済みとなったため、**恒久対策＝`wsl --update`（`uname -r` が 6.18.33 以上で 3 系統すべて修正済み）を最善手順として明記**。未使用モジュールの無効化は「更新できない場合の暫定緩和策（多層防御として残置可）」へ位置づけを変更。ネイティブ Ubuntu 24.04 は `apt full-upgrade`（`linux` 6.8.0-124.124 以上）で修正済み
+- CHANGELOG.md（本ファイル）新設・[docs/operations.md](docs/operations.md) に本リポ自体の更新手順を追記
+
+## 2026-07-12
+
+同梱 OSS イメージの定期棚卸し・再 pin（タグ＋digest 更新）。全 13 イメージで
+CRITICAL 脆弱性 0（`scripts/scan-images.sh`）、9 サービス起動・主要経路の疎通を確認済み。
+
+### Changed
+
+- **Keycloak 26.6.3 → 26.6.4** — セキュリティ修正 8 件（CVE-2026-11800＝JWT アルゴリズム混同による認証バイパス、CVE-2026-9099＝権限昇格 ほか）。**既存環境は早期の更新を推奨**
+- **pgvector 0.8.3 → 0.8.5** — HNSW vacuum 修正。postgres はカスタムイメージのため `docker compose build postgres` が必要。**既存 DB ボリュームでは `ALTER EXTENSION vector UPDATE;` を一度実行**（[docs/operations.md](docs/operations.md) 参照。新規環境では不要）
+- **SeaweedFS 4.34 → 4.39** — 既存ボリュームと in-place 互換（PUT/GET 確認済み）
+- **Ollama 0.30.10 → 0.31.2** — 既存 pull 済みモデルはそのまま利用可
+- **Mailpit v1.30.2 → v1.30.4** — 公開 SMTP 向け脆弱性修正 2 件（本構成は localhost バインドのため影響は限定的）
+- **Dozzle v10.6.6 → v10.6.9**
+- **node 24.17.0 → 24.18.0-alpine**（`echo-exapp` サンプル）
+
+### Unchanged
+
+- PostgreSQL 16.14 / pg_bigm v1.2-20250903 / nginx 1.30.3 / TEI 1.9.3 / speaches 0.8.3 / ElasticMQ 1.7.1（現行が最新のため変更なし）

@@ -151,7 +151,21 @@ docker compose exec -T api node --input-type=module - < scripts/create-common-ap
 
 ## 更新（最新コードに追従する）
 
-`genai-ai-api-onpre` / `genai-web-onpre` を更新したときの反映手順です。
+本リポ（`genai-deploy-onpre`）と `genai-ai-api-onpre` / `genai-web-onpre` を更新したときの
+反映手順です。
+
+**本リポ（`genai-deploy-onpre`）**
+
+```bash
+git pull                  # 同梱 OSS イメージの固定タグ/digest 更新も取り込まれる
+docker compose pull       # 新しいタグ/digest のイメージを取得
+docker compose build postgres   # postgres はカスタムビルドのため再ビルド
+docker compose up -d      # 変更のあったコンテナのみ再作成
+```
+
+変更内容（どのイメージが何のために上がったか）はリポ直下の [CHANGELOG.md](../CHANGELOG.md)
+を参照してください。pgvector の更新を含む場合は、後述の `ALTER EXTENSION vector UPDATE;`
+が既存 DB ボリュームで必要です。
 
 **API（`genai-ai-api-onpre`）**
 

@@ -195,18 +195,33 @@ sudo systemctl enable --now docker
 
 clone 先は必ず **Linux ファイルシステム配下**（例：`~/work`）にします。`/mnt/c/...`（Windows 側）に置くと、**ビルドが極端に遅く・ファイル権限の不整合**が起きます。
 
-### A-6.（任意・推奨）WSL2 カーネルの脆弱性緩和：未使用モジュールの無効化
+### A-6.（推奨）WSL2 カーネルの脆弱性対応：カーネル更新（＋未使用モジュールの無効化）
 
-> **なぜ WSL2 固有か**：WSL2 のカーネルは **Microsoft 提供**で、Ubuntu の `apt upgrade` ではパッチされません（カーネル更新は `wsl --update`）。修正カーネルが届くまでの間、**使っていないカーネル機能を無効化**しておくのが有効なハードニングです。本基盤は下表のモジュール（userspace 暗号 API・IPsec ESP・AFS RPC）を **使わない** ため、無効化による副作用はありません。
-> （ネイティブ Linux（ルート B）は `apt full-upgrade`＋再起動でカーネルごと更新されるため、この手順は不要です。）
+> **なぜ WSL2 固有か**：WSL2 のカーネルは **Microsoft 提供**で、Ubuntu の `apt upgrade` ではパッチされません（カーネル更新は `wsl --update`）。
+> （ネイティブ Linux（ルート B）は `apt full-upgrade`＋再起動でカーネルごと修正版へ更新されるため、この手順は不要です。Ubuntu 24.04 の修正カーネルは配布済み＝`linux` 6.8.0-124.124 以上。）
 
-2026 年春、Ubuntu 24.04 系が影響を受ける Linux カーネルのローカル特権昇格（LPE）脆弱性が相次いで公表されました（**確認時点：2026 年 5 月**）。いずれも Ubuntu Security Team が「該当モジュールの無効化」を緩和策として案内しています。
+2026 年春、Ubuntu 24.04 系が影響を受ける Linux カーネルのローカル特権昇格（LPE）脆弱性が相次いで公表されました。**いずれも修正済みカーネルが配布済みです（確認時点：2026 年 7 月）**。
 
-| 通称 | CVE | 対象モジュール |
-|---|---|---|
-| Copy Fail | CVE-2026-31431 | `algif_aead`（AF_ALG userspace crypto） |
-| Dirty Frag | CVE-2026-43284 / -43500 | `esp4` / `esp6`（IPsec ESP）/ `rxrpc`（AFS RPC） |
-| Fragnesia | CVE-2026-46300 | `esp4` / `esp6` / `rxrpc`（Dirty Frag と同一緩和策でカバー） |
+| 通称 | CVE | 対象モジュール | 修正済み上流カーネル（6.18 系） |
+|---|---|---|---|
+| Copy Fail | CVE-2026-31431 | `algif_aead`（AF_ALG userspace crypto） | 6.18.22 |
+| Dirty Frag | CVE-2026-43284 / -43500 | `esp4` / `esp6`（IPsec ESP）/ `rxrpc`（AFS RPC） | 6.18.28 / 6.18.29 |
+| Fragnesia | CVE-2026-46300 | `esp4` / `esp6` / `rxrpc`（Dirty Frag と同一） | 6.18.33 |
+
+**最善の対応＝カーネル更新（恒久対策）**。Microsoft 配布の WSL2 カーネルは 2026 年 6 月以降 6.18.33 系以上が配布されています（[microsoft/WSL2-Linux-Kernel releases](https://github.com/microsoft/WSL2-Linux-Kernel/releases)）。**PowerShell（Windows 側）**で：
+
+```powershell
+wsl --update
+wsl --shutdown
+```
+
+その後 Ubuntu を開き直して確認します：
+
+```bash
+uname -r   # 6.18.33 以上なら上表 3 系統すべて修正済み
+```
+
+**暫定緩和策（未使用モジュールの無効化）**：`uname -r` がまだ修正版に届かない場合や、すぐにカーネル更新できない場合のつなぎです。Ubuntu Security Team が「該当モジュールの無効化」を緩和策として案内しています。本基盤は対象モジュール（userspace 暗号 API・IPsec ESP・AFS RPC）を**使わない**ため、無効化による副作用はなく、**カーネル更新後も多層防御として残して構いません**。
 
 **Ubuntu の中**で、該当モジュールを `install <mod> /bin/false` で無効化します（blacklist だけでは不十分なため、Ubuntu 公式と同じく `install ... /bin/false` を使います）：
 
@@ -228,7 +243,7 @@ lsmod | grep -E 'algif_aead|esp4|esp6|rxrpc' || echo "対象モジュールは�
 ```
 
 > **`update-initramfs` は不要**：WSL2 は initramfs を使わず、`modprobe` が `/etc/modprobe.d/*.conf` を直接参照するため、再起動後も無効化が維持されます。
-> **恒久対策**：これらは暫定の緩和策です。`wsl --update` でカーネルを更新し、修正済みカーネルが配布されたら緩和策の要否を見直してください。最新の対応状況は一次情報を確認：Ubuntu Security Team（[Copy Fail](https://ubuntu.com/blog/copy-fail-vulnerability-fixes-available) / [Dirty Frag](https://ubuntu.com/blog/dirty-frag-linux-vulnerability-fixes-available) / [CVE-2026-46300](https://ubuntu.com/security/CVE-2026-46300)）。
+> **恒久対策は冒頭のカーネル更新（`wsl --update`）です**。緩和策のみで運用している場合は、更新後に `uname -r` で修正版到達を確認してください。最新の対応状況は一次情報を確認：Ubuntu Security Team（[Copy Fail](https://ubuntu.com/blog/copy-fail-vulnerability-fixes-available) / [Dirty Frag](https://ubuntu.com/blog/dirty-frag-linux-vulnerability-fixes-available) / [CVE-2026-46300](https://ubuntu.com/security/CVE-2026-46300)）。
 
 > **→ ここまでで WSL2（ルート A）の土台づくりは完了です。次は [共通: git の導入と clone](#共通-git-の導入と-clone) へ進みます。**
 
