@@ -44,11 +44,11 @@ RAG（文書検索）機能で**法令検索**を使うには、法令データ�
 ```bash
 cd ~/work/genai-deploy-onpre
 
-# 既定の配布先（org sanpoyoshi-commons ／ リリースタグ law-rag-20260705）から取得して投入
+# 既定の配布先（org sanpoyoshi-commons ／ リリースタグ law-rag-20260713）から取得して投入
 ./scripts/law-rag-import.sh --from-release
 ```
 
-> 環境変数（いずれも既定値あり・別の配布先/版を使う場合のみ上書き）：`GITHUB_OWNER`（既定 `sanpoyoshi-commons`）／`RELEASE_TAG`（既定 `law-rag-20260705`＝e-Gov 取得日 `law-rag-YYYYMMDD`）／`GITHUB_REPO`（既定 `genai-deploy-onpre`）／`ASSET_NAME`（既定 `law-rag.dump`）。
+> 環境変数（いずれも既定値あり・別の配布先/版を使う場合のみ上書き）：`GITHUB_OWNER`（既定 `sanpoyoshi-commons`）／`RELEASE_TAG`（既定 `law-rag-20260713`＝e-Gov 取得日 `law-rag-YYYYMMDD`）／`GITHUB_REPO`（既定 `genai-deploy-onpre`）／`ASSET_NAME`（既定 `law-rag.dump`）。
 
 ### A-2（代替）：手動ダウンロード → ローカル投入
 
