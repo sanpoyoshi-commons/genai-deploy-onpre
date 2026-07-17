@@ -99,9 +99,9 @@ fetch_first "TEI-NOTICE.txt" \
   "https://raw.githubusercontent.com/huggingface/text-embeddings-inference/v1.9.3/NOTICE" \
   "https://raw.githubusercontent.com/huggingface/text-embeddings-inference/v1.9.3/NOTICE.txt"
 
-# --- nginx 1.30.3 (BSD-2-Clause) ---
+# --- nginx 1.30.4 (BSD-2-Clause) ---
 fetch_first "nginx_BSD-2-Clause.txt" \
-  "https://raw.githubusercontent.com/nginx/nginx/release-1.30.3/LICENSE" \
+  "https://raw.githubusercontent.com/nginx/nginx/release-1.30.4/LICENSE" \
   "https://nginx.org/LICENSE"
 
 # --- Mailpit v1.30.4 (MIT) ---

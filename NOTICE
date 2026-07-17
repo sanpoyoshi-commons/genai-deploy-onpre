@@ -42,7 +42,7 @@ docker-compose スタック構成（バージョン・ライセンス）
   | ElasticMQ | v1.7.1           | Apache License 2.0 | SQS 互換キュー             |
   | Ollama    | v0.31.2          | MIT License        | ローカル LLM 推論（chat）  |
   | TEI       | v1.9.3 (cpu)     | Apache License 2.0 | テキスト埋め込み serving   |
-  | nginx     | 1.30.3 stable    | BSD-2-Clause       | リバースプロキシ・TLS      |
+  | nginx     | 1.30.4 stable    | BSD-2-Clause       | リバースプロキシ・TLS      |
   | Mailpit   | v1.30.4          | MIT License        | 開発用 SMTP（同梱）        |
   | Dozzle    | v10.6.9          | MIT License        | ログ閲覧 UI                |
   | speaches  | 0.8.3 (cpu)      | MIT License        | 文字起こし（STT serving）  |

@@ -30,7 +30,7 @@
 | ElasticMQ | v1.7.1 | `softwaremill/elasticmq:1.7.1@sha256:f1de391a…69da82` | Apache-2.0 | [`ElasticMQ_Apache-2.0.txt`](./ElasticMQ_Apache-2.0.txt) / [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) | `v1.7.1`（`LICENSE.txt`＋NOTICE） |
 | Ollama | v0.31.2 | `ollama/ollama:0.31.2@sha256:509fdf54…c62c0a` | MIT | [`Ollama_MIT.txt`](./Ollama_MIT.txt) | `v0.31.2` |
 | Text Embeddings Inference (TEI) | v1.9.3 (cpu) | `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30…1fea07` | Apache-2.0 | [`TEI_Apache-2.0.txt`](./TEI_Apache-2.0.txt) | `v1.9.3` |
-| nginx | 1.30.3 stable | `nginx:1.30.3-alpine3.23@sha256:1bbb1c7e…c675e4` | BSD-2-Clause | [`nginx_BSD-2-Clause.txt`](./nginx_BSD-2-Clause.txt) | `release-1.30.3` |
+| nginx | 1.30.4 stable | `nginx:1.30.4-alpine3.24@sha256:59d10bca…4105d4` | BSD-2-Clause | [`nginx_BSD-2-Clause.txt`](./nginx_BSD-2-Clause.txt) | `release-1.30.4` |
 | Mailpit | v1.30.4 | `axllent/mailpit:v1.30.4@sha256:5a49a77c…82d4f6` | MIT | [`Mailpit_MIT.txt`](./Mailpit_MIT.txt) | `v1.30.4` |
 | Dozzle | v10.6.9 | `amir20/dozzle:v10.6.9@sha256:6f464481…65866b` | MIT | [`Dozzle_MIT.txt`](./Dozzle_MIT.txt) | `v10.6.9` |
 | speaches | 0.8.3 (cpu) | `ghcr.io/speaches-ai/speaches:0.8.3-cpu@sha256:21e3df06…f53ef8` | MIT | [`speaches_MIT.txt`](./speaches_MIT.txt) | `v0.8.3` |

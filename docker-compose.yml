@@ -444,7 +444,7 @@ services:
 
   # リバースプロキシ + TLS termination + 静的配信。唯一の外部公開層。
   nginx:
-    image: nginx:1.30.3-alpine3.23@sha256:1bbb1c7ee25067dafc126f7fa39437876283dfa439bbd12df6a5ecd99dc675e4
+    image: nginx:1.30.4-alpine3.24@sha256:59d10bca5c674965ef4ff884715000dd60ef5567c36663523f108eec8e4105d4
     environment:
       # 実行時モデルメニュー（on-premise 可変化）。api サービスと同一の .env 値を共有し、
       # entrypoint の envsubst で /config.js を生成＝web セレクタと api 許可リストの単一の真実。
@@ -814,7 +814,7 @@ services:
   # named volume /data は root 所有を継承するため、起動前に 999 へ chown する。
   # 既存スタックの nginx alpine を流用（新規 OSS を増やさない。BSD-2-Clause、LICENSES 計上済）。
   elasticmq-init:
-    image: nginx:1.30.3-alpine3.23@sha256:1bbb1c7ee25067dafc126f7fa39437876283dfa439bbd12df6a5ecd99dc675e4
+    image: nginx:1.30.4-alpine3.24@sha256:59d10bca5c674965ef4ff884715000dd60ef5567c36663523f108eec8e4105d4
     profiles: ['queue']
     user: "0:0"
     entrypoint: ['/bin/sh', '-c']

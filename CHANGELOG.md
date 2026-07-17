@@ -4,6 +4,17 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-07-17
+
+### Security
+
+- **nginx 1.30.3 → 1.30.4**（base: alpine3.23 → alpine3.24）— 2026-07 公開の nginx 脆弱性 3 件への対応：
+  - [CVE-2026-42533](https://my.f5.com/manage/s/article/K000162097)（Major）: `map` ディレクティブ＋正規表現使用時のバッファオーバーフロー（DoS／条件次第でコード実行の可能性）
+  - [CVE-2026-60005](https://my.f5.com/manage/s/article/K000162100)（Medium）: `ngx_http_slice_module` のメモリ開示
+  - [CVE-2026-56434](https://my.f5.com/manage/s/article/K000162098)（Medium）: `ngx_http_ssi_module` の use-after-free
+- 本構成の同梱 nginx 設定は 3 件とも該当機能を使用していません（`map` はリテラルマッチのみで正規表現不使用・slice／SSI モジュール不使用）。直接の攻撃面はありませんが、影響バージョン範囲（〜1.31.2、stable 系は〜1.30.3）に含まれるため防御的に更新します。**nginx 設定をカスタマイズして `map` の正規表現マッチ等を追加している場合は早期の更新を推奨**
+- 既存環境への反映：`git pull` → `docker compose pull nginx` → `docker compose up -d nginx`（[docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) 参照）
+
 ## 2026-07-14
 
 ### Data
