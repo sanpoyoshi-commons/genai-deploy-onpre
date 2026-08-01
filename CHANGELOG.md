@@ -4,6 +4,13 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-08-01
+
+### Data
+
+- **法令 RAG 配布 dump 更新（[`law-rag-20260801`](https://github.com/sanpoyoshi-commons/genai-deploy-onpre/releases/tag/law-rag-20260801)）** — e-Gov 2026-08-01 取得分（法令 9,550 件）。前版 `law-rag-20260713` からの差分は改正・新規 2,046 条文／265 法令（金融商品取引法本体・薬機法施行規則・個人情報保護法・電気事業法・資金決済法などが中心、令和八年の新規制定＝重要品種育成法・ヒトゲノム編集胚等規制法・防災庁設置法ほか）、廃止・削除 29,231 行／233 法令（会社法・税法など改正頻度の高い法令での条番号振替が大半）。法令別の差分内訳・sha256・取得手順は Release notes を参照
+- `scripts/law-rag-import.sh` と [docs/law-rag-setup.md](docs/law-rag-setup.md) の既定 `RELEASE_TAG` を `law-rag-20260801` へ更新（旧タグも `RELEASE_TAG` 環境変数で引き続き取得可能）
+
 ## 2026-07-17
 
 ### Security
