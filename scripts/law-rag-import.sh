@@ -19,22 +19,26 @@
 # --from-release 時の環境変数（いずれも既定値あり・別の配布先/版を使う場合のみ指定）:
 #   GITHUB_OWNER  GitHub ユーザー/組織名（既定 sanpoyoshi-commons）
 #   GITHUB_REPO   リポジトリ名（既定 genai-deploy-onpre）
-#   RELEASE_TAG   リリースタグ（既定 law-rag-20260801＝e-Gov 取得日 law-rag-YYYYMMDD）
+#   RELEASE_TAG   リリースタグ（既定 law-rag-20260802＝配布タグ。基準日は dump 同梱メタが正）
 #   ASSET_NAME    アセット名（既定 law-rag.dump）。分割時は <ASSET_NAME>.part-00.. を順に取得し結合。
+#
+# ⚠ as-of 対応でスキーマが変わった（enforce_date / is_future / law_rag_meta）。旧 dump
+#   （law-rag-20260801 以前）は新スキーマの api と非互換で、本スクリプトが明示エラーにする
+#   （law_rag_meta が空＝旧 dump）。新 dump（law-rag-20260802 以降）を使うこと。
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-LAW_TABLES=(dwh_laws app_laws_master app_laws_for_indexing)
+LAW_TABLES=(dwh_laws app_laws_master app_laws_for_indexing law_rag_meta)
 
 usage() {
   cat <<EOS
 使い方:
   $(basename "$0") <dump ファイル>     ローカル dump を投入（分割 .part-NN は自動結合）
   $(basename "$0") --from-release      GitHub Release から取得して投入
-                                       （既定 sanpoyoshi-commons / law-rag-20260801。上書きは環境変数）
+                                       （既定 sanpoyoshi-commons / law-rag-20260802。上書きは環境変数）
 EOS
 }
 
@@ -53,7 +57,7 @@ confirm() {
 
 download_from_release() {
   local owner="${GITHUB_OWNER:-sanpoyoshi-commons}"
-  local tag="${RELEASE_TAG:-law-rag-20260801}"
+  local tag="${RELEASE_TAG:-law-rag-20260802}"
   local repo="${GITHUB_REPO:-genai-deploy-onpre}"
   local asset="${ASSET_NAME:-law-rag.dump}"
   local base="https://github.com/${owner}/${repo}/releases/download/${tag}"
@@ -116,6 +120,17 @@ for t in "${LAW_TABLES[@]}"; do
   }
 done
 
+# as-of スキーマ検証（新スキーマの api か）。app_laws_for_indexing.is_future 列が無ければ
+# migration 未適用（旧スキーマ）。明示エラーで migrate を促す（新 dump × 旧スキーマの取り違え防止）。
+has_is_future="$(dc exec -T postgres psql -U "$pg_user" -d "$pg_db" -tAc \
+  "SELECT EXISTS (SELECT 1 FROM information_schema.columns
+     WHERE table_name='app_laws_for_indexing' AND column_name='is_future');" | tr -d '\r\n')"
+[ "$has_is_future" = "t" ] || {
+  echo "[import] エラー: app_laws_for_indexing.is_future 列がありません（as-of 対応の migration 未適用）。" >&2
+  echo "    先に migrate を適用してください: docker compose ${COMPOSE_FILES[*]} run --rm migrate" >&2
+  exit 1
+}
+
 tbl_csv="$(IFS=, ; echo "${LAW_TABLES[*]}")"
 
 confirm "法令 RAG インポート（${tbl_csv} を TRUNCATE して dump を投入）<- $DUMP"
@@ -138,6 +153,18 @@ for t in "${LAW_TABLES[@]}"; do
   printf '  %-24s %s\n' "$t" "$n"
 done
 
+# as-of dump 検証：law_rag_meta が空＝旧 dump（law-rag-20260801 以前）を新スキーマへ投入した
+# 取り違え。データ基準日が焼き込めず as-of も機能しないため明示エラーにする（新 dump を使うこと）。
+meta_n="$(dc exec -T postgres psql -U "$pg_user" -d "$pg_db" -tAc "SELECT count(*) FROM law_rag_meta;" | tr -d '\r\n')"
+[ "${meta_n:-0}" -ge 1 ] || {
+  echo "" >&2
+  echo "[import] エラー: 投入した dump に law_rag_meta が含まれていません（as-of 対応前の旧 dump）。" >&2
+  echo "    law-rag-20260802 以降の dump を使用してください（RELEASE_TAG を確認）。" >&2
+  exit 1
+}
+
 echo ""
+echo "[import] データ基準日: $(dc exec -T postgres psql -U "$pg_user" -d "$pg_db" -tAc \
+  "SELECT to_char(egov_fetch_date,'YYYY-MM-DD') || ' (' || release_tag || ')' FROM law_rag_meta WHERE id=1;" | tr -d '\r\n')"
 echo "[import] 完了。RAG（文書検索）で法令検索が利用できます。"
 echo "[import] 疎通確認（任意）: web の法令調査フォームから質問して動作確認できます。"

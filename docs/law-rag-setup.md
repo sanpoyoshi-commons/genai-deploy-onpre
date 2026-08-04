@@ -44,11 +44,13 @@ RAG（文書検索）機能で**法令検索**を使うには、法令データ�
 ```bash
 cd ~/work/genai-deploy-onpre
 
-# 既定の配布先（org sanpoyoshi-commons ／ リリースタグ law-rag-20260801）から取得して投入
+# 既定の配布先（org sanpoyoshi-commons ／ リリースタグ law-rag-20260802）から取得して投入
 ./scripts/law-rag-import.sh --from-release
 ```
 
-> 環境変数（いずれも既定値あり・別の配布先/版を使う場合のみ上書き）：`GITHUB_OWNER`（既定 `sanpoyoshi-commons`）／`RELEASE_TAG`（既定 `law-rag-20260801`＝e-Gov 取得日 `law-rag-YYYYMMDD`）／`GITHUB_REPO`（既定 `genai-deploy-onpre`）／`ASSET_NAME`（既定 `law-rag.dump`）。
+> 環境変数（いずれも既定値あり・別の配布先/版を使う場合のみ上書き）：`GITHUB_OWNER`（既定 `sanpoyoshi-commons`）／`RELEASE_TAG`（既定 `law-rag-20260802`＝配布タグ。データ基準日は dump 同梱メタが正）／`GITHUB_REPO`（既定 `genai-deploy-onpre`）／`ASSET_NAME`（既定 `law-rag.dump`）。
+
+> **⚠️ 旧 dump（law-rag-20260801 以前）は非互換**：時間軸 as-of 対応（下記）でスキーマが変わりました（`enforce_date` / `is_future` / `law_rag_meta`）。旧 dump を新スキーマへ投入しようとすると import スクリプトが**明示的にエラー**にします（`law_rag_meta` を含まないため）。必ず `law-rag-20260802` 以降を使ってください。旧 dump を使う場合は、その dump と同時期の api（旧スキーマ）に合わせてください。
 
 ### A-2（代替）：手動ダウンロード → ローカル投入
 
@@ -110,8 +112,37 @@ python scripts/egov_law_to_corpus.py  # 入出力パスはスクリプトの指�
 ingest 済みの環境からは、`scripts/law-rag-export.sh` で配布用 dump（法令 3 テーブルの data-only・custom 形式・圧縮）を生成できます。2GB を超える場合は自動分割します。生成物を GitHub Releases にアップロードすれば、他環境では方法 A で即取り込めます。
 
 ```bash
-./scripts/law-rag-export.sh          # ./dist に law-rag-<日時>.dump（または .part-NN）を生成
+# データ基準日メタ（law_rag_meta）を書き込みつつ dump 生成（as-of 対応以降は必須）。
+# EGOV_FETCH_DATE＝e-Gov 取得日（＝データ基準日）／RELEASE_TAG＝配布タグ。
+EGOV_FETCH_DATE=2026-08-01 RELEASE_TAG=law-rag-20260802 ./scripts/law-rag-export.sh
 ```
+
+> `law_rag_meta`（データ基準日）が空のままだと export は中止します（「データ基準日の無い dump」を配らないため）。`EGOV_FETCH_DATE` と `RELEASE_TAG` を指定するか、あらかじめ `law_rag_meta` を投入しておいてください。
+
+---
+
+## 時間軸（as-of）：どの時点の法令で答えるか
+
+法令データは e-Gov の**時点断面**で、1 法令が施行日ごとに複数版を持ちます（改正で将来施行の版も含む）。本システムは既定で**現行施行版**（データ基準日時点で施行日が到来している最新版）で回答します。
+
+- **データ基準日**：システムが把握している e-Gov の時点（＝dump の取得日）。レポートの「## 出典」節に「データ基準日: YYYY-MM-DD 時点のe-Gov法令データ（タグ）」として自動で焼き込まれます（マークダウンコピーにも入ります）。未来日を指定した回答が「いつ時点の知識か」を誠実に示すためのものです。
+- **参照時点の指定（as_of_date）**：法令調査 API（`POST /api/law-rag/query`）の `inputs.as_of_date`（`YYYY-MM-DD`・任意）で参照時点を指定できます。**未指定なら現行**（従来どおり）。指定すると、その時点で施行されている版を構造的に解決して回答し、未施行条文にも到達できます。回答の出典には各条文の**施行日・未施行フラグ・改正予定（次版施行日）**が付きます。
+  ```bash
+  # 例（要 JWT）：2030-01-01 時点で施行されている版で回答
+  curl -sS -X POST "$API/api/law-rag/query" -H "authorization: Bearer $JWT" \
+    -H 'content-type: application/json' \
+    -d '{"inputs":{"question":"防災庁の所掌事務は？","as_of_date":"2030-01-01"}}'
+  ```
+- **注意（免責）**：どの版が実際に適用されるかは附則の経過措置により条ごとに異なります。本システムは「版の事実の提示」までで、適用判断は利用者に委ねます。施行日が未定（政令委任等）の版は「施行日未定（政令委任等）」と表示します。
+
+### web（法令調査ページ）での使い方
+
+- **参照時点**：質問欄の下の日付入力に将来の日付を入れて実行すると、その日に施行されている版で回答します。**未入力なら現行**（今日時点で施行されている法令）です。
+- **過去日は指定できません**（入力欄の下限が今日）。e-Gov の一括データは各条文の**旧版を保持しない**ため、過去時点を指定しても該当版が見つからないことがほとんどだからです。過去の法令を参照したい場合は、その時期に配布した dump（Release タグ）を投入して使う形になります。
+- **施行日バッジ**：回答の下に「引用した条文の版」一覧が出て、条文ごとに **現行／施行予定** のバッジと施行日・改正予定（次版施行日）、および参照時点・データ基準日を表示します。施行日が未定の版は「施行日未定（政令委任等）」と表示します。
+- レポート本文（コピーボタンでコピーされる範囲）は従来どおりで、版一覧はその外に表示されます。
+
+**API の返却**：上記バッジのため、`POST /api/law-rag/query` は `outputs` / `usageMetadata` に加えて `references[]`（引用番号・出典名・URL・`enforceDate`・`isFuture`・`nextEnforceDate`）、`dataAsOf`（データ基準日）、`asOfDate`（指定時のみ）を返します。**既存の 2 フィールドは不変**なので、`outputs` だけを読む従来のクライアントはそのまま動きます。
 
 ---
 
