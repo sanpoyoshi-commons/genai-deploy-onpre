@@ -130,8 +130,9 @@ Code Interpreter サンドボックス（profile: sandbox、自前ビルド）
   docs/law-rag-setup.md）。この dump の基底データの出典・利用条件を以下に明記します。
 
     基底データ:    e-Gov 法令検索「XML 一括ダウンロード」全法令データ（all_xml.zip）
-    取得日:        2026-07-05（このデータ版に基づく派生物。e-Gov は日次更新のため、
-                   最新版が必要な場合は docs/law-rag-setup.md「方法 B」で自前 ingest）
+    取得日:        現在配布中の版は 2026-08-01 取得分（正は dump 同梱の law_rag_meta＝
+                   データ基準日）。このデータ版に基づく派生物で、e-Gov は日次更新のため、
+                   最新版が必要な場合は docs/law-rag-setup.md「方法 B」で自前 ingest
     出典 URL:      https://laws.e-gov.go.jp/bulkdownload/
     利用条件:      e-Gov ポータル利用規約（https://www.e-gov.go.jp/terms、CC BY 4.0 互換）。
                    複製・翻案・商用利用可。条件として (a) 出典の記載、(b) 編集・加工した

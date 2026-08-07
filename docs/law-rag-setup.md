@@ -27,7 +27,7 @@ RAG（文書検索）機能で**法令検索**を使うには、法令データ�
 
 事前ビルド dump は **GitHub Releases のアセット**として配布します（公開リポジトリでは配布に追加費用はかかりません）。取得と投入は `scripts/law-rag-import.sh` で行います（法令 3 テーブルを TRUNCATE してから data-only で投入する破壊的操作のため、`RESTORE` 入力の確認が入ります）。
 
-> **同梱データの版（出典）**：配布 dump の基底データは **e-Gov 法令検索の全法令データ（XML 一括ダウンロード）を 2026-07-05 に取得**したものを加工（条文チャンク化＋`cl-nagoya/ruri-v3-310m` による 768 次元埋め込み付与）した派生物です。e-Gov は日次更新のため、**より新しい法令が必要な場合は方法 B（自前 ingest）** を使ってください。出典・利用条件（CC BY 4.0 互換）の詳細は [NOTICE](../NOTICE)「法令 RAG 事前ビルド dump」節を参照。
+> **同梱データの版（出典）**：配布 dump の基底データは **e-Gov 法令検索の全法令データ（XML 一括ダウンロード）** を加工（条文チャンク化＋`cl-nagoya/ruri-v3-310m` による 768 次元埋め込み付与）した派生物です。**取得日（データ基準日）は dump 同梱の `law_rag_meta` が正**で、回答の「## 出典」節にも自動表示されます（現在配布中の版は 2026-08-01 取得分）。e-Gov は日次更新のため、**より新しい法令が必要な場合は方法 B（自前 ingest）** を使ってください。出典・利用条件（CC BY 4.0 互換）の詳細は [NOTICE](../NOTICE)「法令 RAG 事前ビルド dump」節を参照。
 
 > **前提**：`docker compose up` 済み（postgres healthy）で、**migrate 適用済み**（法令テーブルが存在）であること。未適用なら `docker compose -f docker-compose.yml -f docker-compose.secrets.yml run --rm migrate`。
 
@@ -35,7 +35,7 @@ RAG（文書検索）機能で**法令検索**を使うには、法令データ�
 
 `--from-release` を使うと、ダウンロード（分割アセットは自動結合）→ 投入までを一括で行います。
 
-> **タグの意味と最新版**：`RELEASE_TAG` の日付（`law-rag-YYYYMMDD`）は **e-Gov 法令データの取得日**を表します。配布 dump は容量の都合上、Releases には基本的に**最新版 1 つだけ**を置きます。メンテナがより新しい取得日の dump に差し替えると既定タグが古くなるので、その場合は Releases ページ <https://github.com/sanpoyoshi-commons/genai-deploy-onpre/releases> で**現在のタグ**を確認して指定してください：
+> **タグの意味と最新版**：`RELEASE_TAG` の日付（`law-rag-YYYYMMDD`）は **その dump を配布した日**を表します。**e-Gov からデータを取得した日（データ基準日）とは別**で、データ基準日は dump 同梱の `law_rag_meta` が正です（例：`law-rag-20260802` のデータ基準日は 2026-08-01）。配布 dump は容量の都合上、Releases には基本的に**最新版 1 つだけ**を置きます。メンテナがより新しい取得日の dump に差し替えると既定タグが古くなるので、その場合は Releases ページ <https://github.com/sanpoyoshi-commons/genai-deploy-onpre/releases> で**現在のタグ**を確認して指定してください：
 >
 > ```bash
 > RELEASE_TAG=law-rag-YYYYMMDD ./scripts/law-rag-import.sh --from-release

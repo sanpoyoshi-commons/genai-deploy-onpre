@@ -25,7 +25,9 @@
 #   生成された dump（または .part-NN 群）を GitHub Releases にアセットとして
 #   アップロードする。アップロード時の命名規約:
 #     - アセット名はタイムスタンプを外して law-rag.dump（分割時は law-rag.dump.part-NN）にリネーム。
-#     - リリースタグは law-rag-<e-Gov 取得日 YYYYMMDD>（例 law-rag-20260705）。
+#     - リリースタグは law-rag-<配布日 YYYYMMDD>（例 law-rag-20260802）。データ基準日
+#       （e-Gov 取得日）とは別で、そちらは law_rag_meta が正。両者は一致しないことがある
+#       （law-rag-20260802 のデータ基準日は 2026-08-01）。
 #   利用者側は scripts/law-rag-import.sh（既定でこの配布先を参照）で取得・投入する。
 
 set -euo pipefail

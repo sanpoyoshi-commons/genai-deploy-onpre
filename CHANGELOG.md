@@ -4,6 +4,12 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-08-07
+
+### Docs
+
+- **配布タグの意味を明確化** — `law-rag-YYYYMMDD` のタグ日は **dump を配布した日**で、**e-Gov 取得日（データ基準日）とは別**である旨を [docs/law-rag-setup.md](docs/law-rag-setup.md)・[NOTICE](NOTICE)・`scripts/law-rag-export.sh` ヘッダに明記しました（データ基準日は dump 同梱の `law_rag_meta` が正。例：`law-rag-20260802` のデータ基準日は 2026-08-01）。文言のみの変更で、dump・スクリプトの動作は変わりません
+
 ## 2026-08-04
 
 ### Added
