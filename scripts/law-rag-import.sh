@@ -19,7 +19,7 @@
 # --from-release 時の環境変数（いずれも既定値あり・別の配布先/版を使う場合のみ指定）:
 #   GITHUB_OWNER  GitHub ユーザー/組織名（既定 sanpoyoshi-commons）
 #   GITHUB_REPO   リポジトリ名（既定 genai-deploy-onpre）
-#   RELEASE_TAG   リリースタグ（既定 law-rag-20260802＝配布タグ。基準日は dump 同梱メタが正）
+#   RELEASE_TAG   リリースタグ（既定 law-rag-20260822＝配布タグ。基準日は dump 同梱メタが正）
 #   ASSET_NAME    アセット名（既定 law-rag.dump）。分割時は <ASSET_NAME>.part-00.. を順に取得し結合。
 #
 # ⚠ as-of 対応でスキーマが変わった（enforce_date / is_future / law_rag_meta）。旧 dump
@@ -38,7 +38,7 @@ usage() {
 使い方:
   $(basename "$0") <dump ファイル>     ローカル dump を投入（分割 .part-NN は自動結合）
   $(basename "$0") --from-release      GitHub Release から取得して投入
-                                       （既定 sanpoyoshi-commons / law-rag-20260802。上書きは環境変数）
+                                       （既定 sanpoyoshi-commons / law-rag-20260822。上書きは環境変数）
 EOS
 }
 
@@ -57,7 +57,7 @@ confirm() {
 
 download_from_release() {
   local owner="${GITHUB_OWNER:-sanpoyoshi-commons}"
-  local tag="${RELEASE_TAG:-law-rag-20260802}"
+  local tag="${RELEASE_TAG:-law-rag-20260822}"
   local repo="${GITHUB_REPO:-genai-deploy-onpre}"
   local asset="${ASSET_NAME:-law-rag.dump}"
   local base="https://github.com/${owner}/${repo}/releases/download/${tag}"

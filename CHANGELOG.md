@@ -6,6 +6,12 @@
 
 ## 2026-08-22
 
+### Data
+
+- **法令 RAG 配布 dump 更新（[`law-rag-20260822`](https://github.com/sanpoyoshi-commons/genai-deploy-onpre/releases/tag/law-rag-20260822)）** — e-Gov 2026-08-22 取得分（法令 9,537 件）。前版 `law-rag-20260802` は**スキーマ更新のみのリリース**（e-Gov 再取得なし・データ基準日 2026-08-01）だったため、実データとしては約 3 週間分の改正が反映されています。改正・新規 **784 条文／223 法令**（省庁の組織令・組織規則の改編が中心。医療保険・社会保険の施行規則群も横断的に改正）＋廃止・削除 37,382 行／264 法令（条番号振替が大半）。データ基準日は 2026-08-22。法令別の全内訳は Release notes を参照
+- `scripts/law-rag-import.sh` と [docs/law-rag-setup.md](docs/law-rag-setup.md) の既定 `RELEASE_TAG` を `law-rag-20260822` へ更新
+- 既存環境の更新手順：`git pull` → `./scripts/law-rag-import.sh --from-release`（スキーマ変更はないため migrate の再実行は不要です）
+
 ### Security
 
 - **Keycloak の「パスワードをお忘れですか」を既定で無効化しました（[CVE-2026-18963](https://access.redhat.com/security/cve/cve-2026-18963) の暫定緩和）** — CVSS 3.1 **9.1 Critical**（`AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N`・CWE-640）。Keycloak の reset-credentials フローに不備があり、**未認証の攻撃者がメール検証リンクを踏ませることなく任意ユーザーのパスワードを再設定できる**（＝アカウント乗っ取り）ものです。同梱 Keycloak（26.6.4）は影響範囲に含まれ、`/auth/` は nginx 経由で公開されるため、**本構成では実際に攻撃面が開いています**。`bruteForceProtected` では防げません（総当たりではなくフローの検証不備のため）
