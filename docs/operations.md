@@ -9,6 +9,7 @@
 - [パスワードの扱い（.env と docker secrets）](#パスワードの扱いenv-と-docker-secrets)
 - [ユーザー・チームの管理（招待制オンボーディング）](#ユーザーチームの管理招待制オンボーディング)
 - [メール送信（Mailpit と本番 SMTP）](#メール送信mailpit-と本番-smtp)
+- [「パスワードをお忘れですか」の無効化（暫定）](#パスワードをお忘れですかの無効化暫定)
 - [更新（最新コードに追従する）](#更新最新コードに追従する)
 - [プロファイル（機能の ON/OFF）](#プロファイル機能の-onoff)
 - [chat LLM モデルの選定](#chat-llm-モデルの選定ハードウェア階層別メニュー)
@@ -136,7 +137,8 @@ docker compose exec -T api node --input-type=module - < scripts/create-common-ap
 
 ## メール送信（Mailpit と本番 SMTP）
 
-パスワードリセット・招待・メール検証は Keycloak の SMTP 設定経由で送信されます。
+招待・メール検証は Keycloak の SMTP 設定経由で送信されます（利用者自身によるパスワードリセットは
+[暫定的に無効化](#パスワードをお忘れですかの無効化暫定) しています）。
 
 - **既定（開発）**：realm に **Mailpit**（`host=mailpit`, `port=1025`, 認証なし）が配線済みです。
   送信メールは **Mailpit Web UI（`http://127.0.0.1:8025/`）** で確認します（実際には外部送信されません）。
@@ -148,6 +150,63 @@ docker compose exec -T api node --input-type=module - < scripts/create-common-ap
 > `defaultGroups` を変えた `genai-realm-realm.template.json` を**既存環境**へ反映するには、
 > (a) 管理コンソールで該当項目を手で直す、または (b) `down -v`（**データロスト**）→ `gen-secrets.sh`
 > → 再起動でクリーンに再 import します。新規環境では `gen-secrets.sh` 生成時点で反映されます。
+
+## 「パスワードをお忘れですか」の無効化（暫定）
+
+realm テンプレートは `resetPasswordAllowed: false`（＝ログイン画面の「パスワードをお忘れですか？」を出さない）
+を既定にしています。**これは恒久的な設計ではなく、Keycloak の脆弱性への暫定緩和です。**
+
+- **理由**：[CVE-2026-18963](https://access.redhat.com/security/cve/cve-2026-18963)（CVSS 3.1 **9.1 Critical**
+  `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N`／CWE-640）。Keycloak の reset-credentials フローに不備があり、
+  **未認証の攻撃者がメール検証リンクを踏ませることなく、任意ユーザーのパスワードを再設定できます**。
+  同梱の Keycloak は nginx の `/auth/` 配下に公開されるため、この機能が有効だと攻撃経路になります。
+- **この設定で塞がる理由**：Keycloak は `resetPasswordAllowed` が `false` のとき、リンクを隠すだけでなく
+  `/auth/realms/<realm>/login-actions/reset-credentials` の GET／POST 双方をサーバー側で拒否します（400）。
+  Red Hat が公式の暫定緩和として案内している手順と同じものです。
+- **`bruteForceProtected` では防げません**：本件は総当たりではなくフローの検証不備のためです。
+- **修正版が出たら戻します**：Keycloak 26.7.2 で修正済みです。本リポジトリはバージョン固定＋クールダウン
+  （リリース後 7〜14 日の様子見）を運用原則としているため、先に本設定で攻撃面を閉じ、
+  イメージを 26.7.2 へ上げた時点で `resetPasswordAllowed` を `true` へ戻します。
+
+### 影響と代替手段
+
+- **影響を受けるのは、利用者が自分でパスワードを再発行する導線のみ**です。
+- **招待フローは影響を受けません**。`create-user.mjs` は Keycloak Admin REST の `execute-actions-email`
+  （`UPDATE_PASSWORD` / `VERIFY_EMAIL`）を使っており、reset-credentials フローとは別経路です。
+- 利用者がパスワードを忘れた場合は、**管理者が再設定**します。
+  - 招待メールを再送する：[「1. 一般ユーザーを作成・招待する」](#1-一般ユーザーを作成招待する) と同じコマンド（冪等）
+  - 管理コンソールで直接設定する：`https://localhost/auth` → realm `genai-realm` → Users → 対象 → Credentials
+
+### 既存環境への反映（必須）
+
+realm は `--import-realm` で**初回のみ**取り込まれるため、**すでに起動したことのある環境ではテンプレートの
+変更が効きません**。以下のどちらかで、稼働中の realm に直接適用してください。
+
+**管理コンソール**：`https://localhost/auth` → realm 選択 → Realm settings → Login →
+**Forgot password → Off**。`genai-realm` だけでなく **`master` realm も確認**してください。
+
+**または CLI**：
+
+```bash
+# 管理者としてログイン（パスワードはプロンプトで入力）
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 --realm master --user admin
+
+# 現在値の確認
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh get realms/genai-realm \
+  --fields realm,resetPasswordAllowed
+
+# 無効化（master 側も同様に実行）
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update realms/genai-realm \
+  -s resetPasswordAllowed=false
+docker compose exec keycloak /opt/keycloak/bin/kcadm.sh update realms/master \
+  -s resetPasswordAllowed=false
+```
+
+適用後、`https://localhost/auth/realms/genai-realm/account/` からのログイン画面に
+「パスワードをお忘れですか？」が表示されないこと、および
+`https://localhost/auth/realms/genai-realm/login-actions/reset-credentials` が
+エラーページ（400）になることを確認してください。
 
 ## 更新（最新コードに追従する）
 

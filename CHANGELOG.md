@@ -4,6 +4,16 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-08-22
+
+### Security
+
+- **Keycloak の「パスワードをお忘れですか」を既定で無効化しました（[CVE-2026-18963](https://access.redhat.com/security/cve/cve-2026-18963) の暫定緩和）** — CVSS 3.1 **9.1 Critical**（`AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N`・CWE-640）。Keycloak の reset-credentials フローに不備があり、**未認証の攻撃者がメール検証リンクを踏ませることなく任意ユーザーのパスワードを再設定できる**（＝アカウント乗っ取り）ものです。同梱 Keycloak（26.6.4）は影響範囲に含まれ、`/auth/` は nginx 経由で公開されるため、**本構成では実際に攻撃面が開いています**。`bruteForceProtected` では防げません（総当たりではなくフローの検証不備のため）
+- 対応として `keycloak/import/genai-realm-realm.template.json` の `resetPasswordAllowed` を `false` にしました。Keycloak はこの値が `false` のとき `login-actions/reset-credentials` の GET／POST 双方をサーバー側で拒否します。Red Hat が公式の暫定緩和として案内している手順と同じものです
+- **影響**：利用者が自分でパスワードを再発行する導線のみが使えなくなります。**招待フロー（`create-user.mjs`）は別経路のため影響ありません**。パスワードを忘れた場合は管理者が招待メール再送または管理コンソールで再設定します
+- **⚠️ 既存環境は手動での適用が必要です**：realm は `--import-realm` で初回のみ取り込まれるため、すでに起動したことのある環境にはこの変更が効きません。管理コンソール（Realm settings → Login → Forgot password → Off、`master` realm も）または `kcadm.sh` で適用してください。手順は [docs/operations.md「「パスワードをお忘れですか」の無効化（暫定）」](docs/operations.md#パスワードをお忘れですかの無効化暫定)
+- **本設定は暫定です**：修正版 Keycloak 26.7.2（2026-08-19 公開）へイメージを上げた時点で `resetPasswordAllowed` を `true` へ戻します。バージョン固定＋リリース後クールダウンの運用原則に従い、版上げは別途実施します
+
 ## 2026-08-07
 
 ### Docs
