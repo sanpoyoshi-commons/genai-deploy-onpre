@@ -97,7 +97,7 @@ services:
   # 認証・IdP（Cognito 代替）。
   # nginx 前段 + 内部 HTTP の公式サポート構成。
   keycloak:
-    image: quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4
+    image: quay.io/keycloak/keycloak:26.7.2@sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669
     command: ['start', '--optimized=false', '--http-enabled=true', '--hostname-strict=false', '--proxy-headers=xforwarded', '--health-enabled=true', '--import-realm']
     environment:
       KC_DB: postgres

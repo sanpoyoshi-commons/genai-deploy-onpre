@@ -4,6 +4,19 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-08-26
+
+### Security
+
+- **同梱 Keycloak を 26.6.4 → 26.7.2 へ更新しました（[CVE-2026-18963](https://access.redhat.com/security/cve/cve-2026-18963) の根本修正）** — 2026-08-22 に入れた暫定緩和は「パスワードをお忘れですか」を止めることで攻撃面を閉じるものでしたが、26.7.2 は reset-credentials の action token と対象ユーザーの照合を追加した修正版で、**機能を止めずに塞ぎます**。26.7.2 にはこのほかにも security fix が含まれます（[リリースノート](https://www.keycloak.org/2026/08/keycloak-2672-released)）
+- 併せて **26.7.0 / 26.7.1 の breaking changes** を事前に点検し、本構成への影響が無いことを確認しています（Admin REST 用サービスアカウントの権限は protocol mapper 経由ではなく `realm-management` client role の直接割当／`view-system` 不使用／FGAP・Authorization Services・Identity Provider いずれも未使用／`--features` 指定なし＝preview 機能を有効化していない／self-registration 無効）
+- **⚠️ Keycloak はダウングレードできません**：起動時に Liquibase が DB スキーマを自動マイグレーションします（今回は `jpa-changelog-26.7.0.xml`）。**更新前に `./scripts/backup.sh logical` でバックアップを取得してください**。切り戻しはイメージタグを戻すだけでは完了せず、`keycloak-db` のリストアが必要です
+
+### Changed
+
+- **「パスワードをお忘れですか」を再び有効化しました（暫定緩和の解除）** — `keycloak/import/genai-realm-realm.template.json` の `resetPasswordAllowed` を `true` へ戻しました。**新規に構築する環境では何もする必要はありません**
+- **⚠️ 2026-08-22 の暫定緩和を手で適用した既存環境は、戻す操作が必要です**：realm は `--import-realm` で初回のみ取り込まれるため、テンプレートの変更は既存環境に効きません。**先に 26.7.2 へ上げてから**、管理コンソール（Realm settings → Login → Forgot password → **On**）または `kcadm.sh` で戻してください（順序が逆だと、脆弱なままリセット機能を開くことになります）。手順は [docs/operations.md「「パスワードをお忘れですか」の暫定無効化（解除済み・履歴）」](docs/operations.md#パスワードをお忘れですかの暫定無効化解除済み履歴)。`master` realm は Keycloak の既定が `false` のため、そのままで構いません
+
 ## 2026-08-22
 
 ### Data
@@ -17,7 +30,7 @@
 - **Keycloak の「パスワードをお忘れですか」を既定で無効化しました（[CVE-2026-18963](https://access.redhat.com/security/cve/cve-2026-18963) の暫定緩和）** — CVSS 3.1 **9.1 Critical**（`AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N`・CWE-640）。Keycloak の reset-credentials フローに不備があり、**未認証の攻撃者がメール検証リンクを踏ませることなく任意ユーザーのパスワードを再設定できる**（＝アカウント乗っ取り）ものです。同梱 Keycloak（26.6.4）は影響範囲に含まれ、`/auth/` は nginx 経由で公開されるため、**本構成では実際に攻撃面が開いています**。`bruteForceProtected` では防げません（総当たりではなくフローの検証不備のため）
 - 対応として `keycloak/import/genai-realm-realm.template.json` の `resetPasswordAllowed` を `false` にしました。Keycloak はこの値が `false` のとき `login-actions/reset-credentials` の GET／POST 双方をサーバー側で拒否します。Red Hat が公式の暫定緩和として案内している手順と同じものです
 - **影響**：利用者が自分でパスワードを再発行する導線のみが使えなくなります。**招待フロー（`create-user.mjs`）は別経路のため影響ありません**。パスワードを忘れた場合は管理者が招待メール再送または管理コンソールで再設定します
-- **⚠️ 既存環境は手動での適用が必要です**：realm は `--import-realm` で初回のみ取り込まれるため、すでに起動したことのある環境にはこの変更が効きません。管理コンソール（Realm settings → Login → Forgot password → Off、`master` realm も）または `kcadm.sh` で適用してください。手順は [docs/operations.md「「パスワードをお忘れですか」の無効化（暫定）」](docs/operations.md#パスワードをお忘れですかの無効化暫定)
+- **⚠️ 既存環境は手動での適用が必要です**：realm は `--import-realm` で初回のみ取り込まれるため、すでに起動したことのある環境にはこの変更が効きません。管理コンソール（Realm settings → Login → Forgot password → Off、`master` realm も）または `kcadm.sh` で適用してください。手順は [docs/operations.md「「パスワードをお忘れですか」の暫定無効化（解除済み・履歴）」](docs/operations.md#パスワードをお忘れですかの暫定無効化解除済み履歴)
 - **本設定は暫定です**：修正版 Keycloak 26.7.2（2026-08-19 公開）へイメージを上げた時点で `resetPasswordAllowed` を `true` へ戻します。バージョン固定＋リリース後クールダウンの運用原則に従い、版上げは別途実施します
 
 ## 2026-08-07
