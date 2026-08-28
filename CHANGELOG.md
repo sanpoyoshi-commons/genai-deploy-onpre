@@ -4,6 +4,16 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-08-28
+
+### Security
+
+- **同梱 Mailpit を v1.30.4 → v1.30.7 へ更新しました（[CVE-2026-67448](https://github.com/axllent/mailpit/security/advisories/GHSA-8r62-w5wh-fc5m) ／ [CVE-2026-67447](https://github.com/axllent/mailpit/security/advisories/GHSA-r553-m4fv-5v97)）** — いずれも CVSS 3.1 **MEDIUM**（6.5／5.3）。変更はイメージ 1 行のみで、設定・データの移行はありません
+- **CVE-2026-67448（6.5・WebSocket の Origin チェック迂回）** — Mailpit の Web UI は**既定で認証がなく、受信した全メールを閲覧できます**。この不備は、パスをパーセントエンコードした `/%61pi/events` へ WebSocket 接続することで Origin の検査をすり抜けられるというもので、**UI を `127.0.0.1` に閉じていても塞がりません**（利用者が同じ端末のブラウザで攻撃者のページを開くと発火するため）。本構成は Keycloak のパスワード再設定メールが Mailpit に届くため、メール本文の閲覧はアカウント乗っ取りにつながりえます。修正が実際に効くことは確認済みです（v1.30.4 では当該パスで WebSocket 接続が確立しますが、v1.30.7 では `403 Forbidden` で拒否されます）
+- **CVE-2026-67447（5.3・SMTP DATA 行のサイズ超過）** — 本構成では SMTP（1025）をホストへ publish しておらず内部ネットワークからのみ到達するため、影響は限定的です
+- このほか **CVE が採番されていない修正**も含まれます（POP3 パスワードのデバッグログ伏字化、POP3 のログイン失敗追跡、添付ダウンロードの Content-Type サニタイズ、サムネイル応答のファイル名エスケープ、HTTP サーバへの `ReadHeaderTimeout` 追加など）。なお POP3 は `MP_POP3_AUTH` と `MP_POP3_BIND_ADDR` の両方を設定しない限り起動しないため、本構成の既定では無効です
+- 既存環境の更新手順：`git pull` → `docker compose up -d mailpit`。**Mailpit は永続ボリュームを持たないため、コンテナの再作成で受信済みメールは消えます**（開発用の検証データのため実害はありませんが、着信確認の途中であれば再送してください）
+
 ## 2026-08-26
 
 ### Security
