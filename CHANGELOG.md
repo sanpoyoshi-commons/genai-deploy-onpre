@@ -4,6 +4,14 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-09-04
+
+### Data
+
+- **法令 RAG 配布 dump 更新（[`law-rag-20260904`](https://github.com/sanpoyoshi-commons/genai-deploy-onpre/releases/tag/law-rag-20260904)）** — e-Gov 2026-09-04 取得分（法令 9,518 件）。前版 `law-rag-20260822` から約 2 週間分の改正が反映されています。改正・新規 **131 条文／55 法令**（自治体システム標準化基準の省令群と税制関係の省令改正が中心。令和八年熊本地震の災害対応政令 2 件も新規収録）＋廃止・削除 10,843 行／80 法令（条番号振替が大半）。データ基準日は 2026-09-04。法令別の全内訳は Release notes を参照
+- `scripts/law-rag-import.sh` と [docs/law-rag-setup.md](docs/law-rag-setup.md) の既定 `RELEASE_TAG` を `law-rag-20260904` へ更新（旧タグも `RELEASE_TAG` 環境変数で引き続き取得可能）
+- 既存環境の更新手順：`git pull` → `./scripts/law-rag-import.sh --from-release`（スキーマ変更はないため migrate の再実行は不要です）
+
 ## 2026-08-28
 
 ### Security

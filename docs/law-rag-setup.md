@@ -27,7 +27,7 @@ RAG（文書検索）機能で**法令検索**を使うには、法令データ�
 
 事前ビルド dump は **GitHub Releases のアセット**として配布します（公開リポジトリでは配布に追加費用はかかりません）。取得と投入は `scripts/law-rag-import.sh` で行います（法令 3 テーブルを TRUNCATE してから data-only で投入する破壊的操作のため、`RESTORE` 入力の確認が入ります）。
 
-> **同梱データの版（出典）**：配布 dump の基底データは **e-Gov 法令検索の全法令データ（XML 一括ダウンロード）** を加工（条文チャンク化＋`cl-nagoya/ruri-v3-310m` による 768 次元埋め込み付与）した派生物です。**取得日（データ基準日）は dump 同梱の `law_rag_meta` が正**で、回答の「## 出典」節にも自動表示されます（現在配布中の版は 2026-08-22 取得分）。e-Gov は日次更新のため、**より新しい法令が必要な場合は方法 B（自前 ingest）** を使ってください。出典・利用条件（CC BY 4.0 互換）の詳細は [NOTICE](../NOTICE)「法令 RAG 事前ビルド dump」節を参照。
+> **同梱データの版（出典）**：配布 dump の基底データは **e-Gov 法令検索の全法令データ（XML 一括ダウンロード）** を加工（条文チャンク化＋`cl-nagoya/ruri-v3-310m` による 768 次元埋め込み付与）した派生物です。**取得日（データ基準日）は dump 同梱の `law_rag_meta` が正**で、回答の「## 出典」節にも自動表示されます（現在配布中の版は 2026-09-04 取得分）。e-Gov は日次更新のため、**より新しい法令が必要な場合は方法 B（自前 ingest）** を使ってください。出典・利用条件（CC BY 4.0 互換）の詳細は [NOTICE](../NOTICE)「法令 RAG 事前ビルド dump」節を参照。
 
 > **前提**：`docker compose up` 済み（postgres healthy）で、**migrate 適用済み**（法令テーブルが存在）であること。未適用なら `docker compose -f docker-compose.yml -f docker-compose.secrets.yml run --rm migrate`。
 
@@ -44,11 +44,11 @@ RAG（文書検索）機能で**法令検索**を使うには、法令データ�
 ```bash
 cd ~/work/genai-deploy-onpre
 
-# 既定の配布先（org sanpoyoshi-commons ／ リリースタグ law-rag-20260822）から取得して投入
+# 既定の配布先（org sanpoyoshi-commons ／ リリースタグ law-rag-20260904）から取得して投入
 ./scripts/law-rag-import.sh --from-release
 ```
 
-> 環境変数（いずれも既定値あり・別の配布先/版を使う場合のみ上書き）：`GITHUB_OWNER`（既定 `sanpoyoshi-commons`）／`RELEASE_TAG`（既定 `law-rag-20260822`＝配布タグ。データ基準日は dump 同梱メタが正）／`GITHUB_REPO`（既定 `genai-deploy-onpre`）／`ASSET_NAME`（既定 `law-rag.dump`）。
+> 環境変数（いずれも既定値あり・別の配布先/版を使う場合のみ上書き）：`GITHUB_OWNER`（既定 `sanpoyoshi-commons`）／`RELEASE_TAG`（既定 `law-rag-20260904`＝配布タグ。データ基準日は dump 同梱メタが正）／`GITHUB_REPO`（既定 `genai-deploy-onpre`）／`ASSET_NAME`（既定 `law-rag.dump`）。
 
 > **⚠️ 旧 dump（law-rag-20260801 以前）は非互換**：時間軸 as-of 対応（下記）でスキーマが変わりました（`enforce_date` / `is_future` / `law_rag_meta`）。旧 dump を新スキーマへ投入しようとすると import スクリプトが**明示的にエラー**にします（`law_rag_meta` を含まないため）。必ず `law-rag-20260802` 以降を使ってください。旧 dump を使う場合は、その dump と同時期の api（旧スキーマ）に合わせてください。
 
@@ -114,7 +114,7 @@ ingest 済みの環境からは、`scripts/law-rag-export.sh` で配布用 dump�
 ```bash
 # データ基準日メタ（law_rag_meta）を書き込みつつ dump 生成（as-of 対応以降は必須）。
 # EGOV_FETCH_DATE＝e-Gov 取得日（＝データ基準日）／RELEASE_TAG＝配布タグ。
-EGOV_FETCH_DATE=2026-08-22 RELEASE_TAG=law-rag-20260822 ./scripts/law-rag-export.sh
+EGOV_FETCH_DATE=2026-09-04 RELEASE_TAG=law-rag-20260904 ./scripts/law-rag-export.sh
 ```
 
 > `law_rag_meta`（データ基準日）が空のままだと export は中止します（「データ基準日の無い dump」を配らないため）。`EGOV_FETCH_DATE` と `RELEASE_TAG` を指定するか、あらかじめ `law_rag_meta` を投入しておいてください。
