@@ -1,26 +1,77 @@
 # genai-deploy-onpre
 
-`genai-web-onpre` および `genai-ai-api-onpre` をローカル環境で動作させる
-ための配布物（docker-compose.yml 等の設定ファイル群）を提供します。
+デジタル庁が OSS 公開したガバメント AI「源内」を、クラウドなしの単一ホストで動かすための
+非公式の配布物です。AWS アカウントも CDK も要りません。
 
-## 概要
+```bash
+# 3 リポジトリを横並びに clone（deploy は api を ../genai-ai-api-onpre からビルドします）
+mkdir -p ~/work && cd ~/work
+git clone https://github.com/sanpoyoshi-commons/genai-deploy-onpre.git genai-deploy-onpre
+git clone https://github.com/sanpoyoshi-commons/genai-ai-api-onpre.git genai-ai-api-onpre
+git clone https://github.com/sanpoyoshi-commons/genai-web-onpre.git genai-web-onpre
+cd genai-deploy-onpre
 
-個人開発者が単一のホスト上で `docker compose up` によりローカル AI 基盤を起動し、
-その上でアプリ開発・実験を行えることを目指す配布物です。
+cp .env.example .env        # エディタで編集（パスワード・ポート・モデル一覧）
+./scripts/gen-certs.sh      # 自己署名 TLS 証明書（初回のみ）
+./scripts/gen-secrets.sh    # 秘密値・realm・初回管理者 admin を生成（初回のみ）
+./scripts/build-web.sh      # web をビルドして web/ へ配置（Docker 内でビルド・ホストに node 不要）
+docker compose build        # カスタムイメージ（postgres / api）を初回ビルド
+docker compose up -d
+```
+
+これだけで、認証付きの AI アプリ基盤が **https://localhost** に立ち上がります
+（自己署名 TLS・nginx 443。ブラウザの警告は
+[証明書の信頼登録](docs/operations.md#証明書の信頼登録ブラウザ警告の解消)で解消できます）。
+既定では チャット / 文章生成 / 翻訳 / 作図 が有効で、`COMPOSE_PROFILES` に足せば
+画像生成 / 文字起こし / データ分析（Code Interpreter）/ 法令 RAG も同じ画面に並びます。
+必要なのは **Docker Engine** だけです（LLM の Ollama もスタックに同梱。モデルの重みのみ初回に pull します）。
+
+各手順の意味と選択肢は [初期設定（起動前の準備）](#初期設定起動前の準備) 以降で説明します。
+
+## 画面
+
+**1. ログイン**（認証は同梱の Keycloak。セルフサインアップは無効＝招待制で、初回は自動生成された管理者 `admin` でログインします）
+
+![ログイン画面](docs/images/1_login.png)
+
+**2. 初期画面**（ログイン直後のトップ。LLM を選んでその場でチャットを投げられます）
+
+![初期画面](docs/images/2_Initial_page.png)
+
+**3. すべての AI アプリ**（同梱アプリの一覧。プロファイルで ON にした機能がここに並びます）
+
+![AI アプリ一覧](docs/images/3_all-default-AI-App.png)
+
+**4. 利用履歴**（アカウントメニューから、過去のやり取りを一覧・再開できます）
+
+![利用履歴](docs/images/4_used-history.png)
+
+## 上流との違い
+
+| | 上流 digital-go-jp | 本配布物 |
+|---|---|---|
+| 実行基盤 | AWS（CDK / Bedrock / Cognito / DynamoDB） | 単一ホスト + Docker Engine |
+| LLM | Bedrock | Ollama / OpenAI 互換 / クラウド API を切替 |
+| 認証 | Cognito | Keycloak（OIDC・PKCE） |
+| 法令 RAG | — | e-Gov 法令データの dump を Releases で配布 |
+| 想定用途 | 政府業務 | 開発者 1 人の開発・実験 |
+
+差分の詳細と、そこから生じるオンプレ固有の使い方（招待制のユーザー管理・メール送信等）は
+**[docs/onpre-vs-upstream.md](docs/onpre-vs-upstream.md)** にまとめています。機能の ON/OFF
+（プロファイル）、モデル選定、更新、ログ閲覧、パスワードの扱い等の運用手順は
+**[docs/operations.md](docs/operations.md)** にあります（本書は最短の起動までを扱います）。
+
+## 本プロジェクトについて
+
+本配布物は独立・非公式の派生であり、デジタル庁およびその公式プロジェクトとは関係がなく、
+提携・推奨・認証・保証を受けたものではありません。本番業務や機微データの取扱いは
+想定していない、無保証のソフトウェアです（利用は自己責任。全文は [DISCLAIMER.md](DISCLAIMER.md)）。
+
+コードのライセンス許諾は、公式ロゴ等のブランド要素の使用許諾を含みません。
+ブランド要素の使用については「ガバメント AI 源内 商標およびブランドガイドライン」を
+参照してください。
 
 本リポジトリ自体は上流フォークを含まない独立リポジトリです。
-
-> **免責**：本配布物は**開発・実験用**の無保証ツールです。**本番業務での利用や、実際の個人情報・
-> 機微なデータの取り扱いは想定していません**（利用は自己責任）。また本プロジェクトは同梱・派生 OSS や
-> 上流（デジタル庁の `genai-ai-api` / `genai-web` 等）とは**無関係・非公式**です。
-> 免責の全文は [DISCLAIMER.md](DISCLAIMER.md) を参照してください。
-
-> **運用・詳細**：機能の ON/OFF（プロファイル）、モデル選定、更新、ログ閲覧、パスワードの扱い等の
-> 運用手順は **[docs/operations.md](docs/operations.md)** にまとめています。本書は最短の起動までを扱います。
-
-> **上流オリジナルとの違い**：クラウド前提の上流（`genai-web` / `genai-ai-api`）との差分と、そこから
-> 生じるオンプレ固有の使い方（招待制のユーザー管理・メール送信等）は
-> **[docs/onpre-vs-upstream.md](docs/onpre-vs-upstream.md)** にまとめています。
 
 ## システム要件（メモリの目安）
 
