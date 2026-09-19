@@ -312,6 +312,12 @@ COMPOSE_PROFILES=llm,embedding,rerank,image,transcribe,queue docker compose up -
 > **[docs/law-rag-setup.md](law-rag-setup.md)** を参照してください。法令調査は汎用 chat / 汎用 RAG とは別系統の
 > 専用パイプライン（法令名推定→特定→条文選別→出典付きレポート）で、独立メニューとして提供します
 > （設計意図は web リポジトリ `docs/法令調査機能.md` を参照）。
+>
+> **答えが 3 種類あります**：①条文を引いて答える（現行）、②「まだ施行されていない」と施行日を添えて
+> 答える（施行予定）、③「該当条文が見当たりません」とだけ答える（該当なし）。③は、質問に合う法令が
+> 同梱データに無いときに、**名前の近い別の法令を根拠にしてしまわないための安全側の動作**です。
+> 取りこぼしと感じたら、法令の正式名称を質問に含めて再度お試しください。
+> 仕組みと上流との差分は [docs/development/law-rag-retrieval.md](development/law-rag-retrieval.md)。
 
 ### ⚠ Code Interpreter（任意コード実行）を有効にする前に
 

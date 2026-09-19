@@ -9,5 +9,6 @@
 | [llm-abstraction.md](./llm-abstraction.md) | LLM 抽象化レイヤー（`LLM_BACKEND` 経路切替・OpenAI 互換 IF） |
 | [oss-migration.md](./oss-migration.md) | クラウド（AWS 等）→ OSS の置き換えマッピング |
 | [database-schema.md](./database-schema.md) | 業務 DB スキーマ（PostgreSQL 7 テーブル + RAG 用 pgvector/pg_bigm） |
+| [law-rag-retrieval.md](./law-rag-retrieval.md) | 法令 RAG の検索経路と 3 値応答（現行／施行予定／該当なし）・上流との差分 |
 
 関連：運用ガイド（機能 ON/OFF・モデル・更新・ログ等）は [../operations.md](../operations.md)、環境変数は [../env-reference.md](../env-reference.md)、実際の OSS バージョンと配線は repo ルートの `docker-compose.yml`（タグ + SHA 固定・詳細コメント付き）。
