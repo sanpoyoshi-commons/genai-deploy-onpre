@@ -38,7 +38,7 @@ docker-compose スタック構成（バージョン・ライセンス）
   | pgvector  | 0.8.5            | PostgreSQL License | ベクトル検索拡張           |
   | pg_bigm   | v1.2-20250903    | PostgreSQL License | 全文検索拡張               |
   | Keycloak  | 26.6.4           | Apache License 2.0 | 認証・IdP                  |
-  | SeaweedFS | 4.39             | Apache License 2.0 | オブジェクトストレージ     |
+  | SeaweedFS | 4.47             | Apache License 2.0 | オブジェクトストレージ     |
   | ElasticMQ | v1.7.1           | Apache License 2.0 | SQS 互換キュー             |
   | Ollama    | v0.31.2          | MIT License        | ローカル LLM 推論（chat）  |
   | TEI       | v1.9.3 (cpu)     | Apache License 2.0 | テキスト埋め込み serving   |

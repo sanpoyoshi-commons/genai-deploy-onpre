@@ -81,7 +81,8 @@ restore_postgres() {
     -U "$pg_user" -d "$pg_db" < "$dump"
 }
 
-readonly SWFS_IMAGE='chrislusf/seaweedfs:4.22@sha256:84429e5f21fad82246f5cfae7b39e9a17da18afb62f2b79c25ccd364ab02793b'
+# tar 用 utility image。tag＋digest は docker-compose.yml の seaweedfs と同一に保つ（backup.sh と同じ値）。
+readonly SWFS_IMAGE='chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882'
 
 resolve_seaweedfs_volume() {
   local vol

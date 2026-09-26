@@ -18,7 +18,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-TRIVY_IMAGE="aquasec/trivy:latest"
+# trivy 自身の image は tag＋digest で固定する（2026-03 に latest が供給網侵害で悪性 image を
+# 指した事例があるため＝GHSA-69fq-xp46-6x23）。版を上げるときはクールダウン下限 7 日を満たすこと。
+TRIVY_IMAGE="aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969"
 CACHE_VOL="trivy-cache"
 
 # 走査対象 = compose の `image: ...@sha256:...` 群 ＋ 各 Dockerfile の base（ARG ...=...@sha256:...）。

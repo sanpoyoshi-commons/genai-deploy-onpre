@@ -4,6 +4,25 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-09-26
+
+### Added
+
+- **判定 API（`POST /api/judge`）の設定を compose に配線しました** — 型付きの判定を行うルートで、`--profile llm` の Ollama を**ネイティブの `/api/chat`** で呼びます（1 トークン目の logprobs を読むため、OpenAI 互換ではありません）。`JUDGE_OLLAMA_URL`・`JUDGE_DEFAULT_MODEL`・`JUDGE_ALLOWED_MODELS`・`JUDGE_CONTEXT_LENGTH`・`JUDGE_MAX_STATE_BYTES`・`JUDGE_ATTEMPT_TIMEOUT_MS`・`JUDGE_REQUEST_BUDGET_MS`・`JUDGE_MAX_RETRY_WAIT_MS` の 8 変数を足し、意味と既定値は [docs/env-reference.md](docs/env-reference.md) に書きました。**判定に使うモデルが決まらないとき（`JUDGE_DEFAULT_MODEL` も `OLLAMA_DEFAULT_CHAT_MODEL` も空のとき）は、判定のルートだけが 503 になり、ほかの機能は起動も動作もします。ほかの変数は、未設定なら既定値か既存の設定に従います**
+- **待ち時間の上限を3つに分けました** — 上流の呼び出し1回（`JUDGE_ATTEMPT_TIMEOUT_MS`・既定 300 秒）、リクエスト全体（`JUDGE_REQUEST_BUDGET_MS`・既定 600 秒。超えると 504）、リトライの待機（`JUDGE_MAX_RETRY_WAIT_MS`・既定 60 秒）です。ローカルのモデルは初回の読み込みに時間がかかるため、1 回の呼び出しには長めの猶予を与えつつ、全体の待ち時間には天井を設けています。判定の対象にする `state` にも上限があります（`JUDGE_MAX_STATE_BYTES`・既定 8192 バイト。超えると 400）
+
+### Security
+
+- **同梱 SeaweedFS を 4.39 → 4.47 へ更新しました** — 上流が 2026-09 に公開した advisory 9 件（最大 CVSS 3.1 **9.9**）と、既報の CVE-2026-46603（同梱 `golang.org/x/image` を 0.45.0 へ）・CVE-2026-77317／77298／77611／77368 に対応します（このうち2件は、下の署名鍵の設定と合わせて閉じます）。**本構成の SeaweedFS はホストへポートを publish しておらず、外部から直接叩くことはできません**（nginx が中継するのは S3 REST の 8333 のみ。SFTP・バケットポリシー・IAM の管理 API は使っていません）。9 件はいずれも「同じ Docker ネットワーク内の別のコンテナが先に侵害された場合に効く」もので、想定される最大の損失は、認証なしで Admin の IAM identity を作られ、保存したファイルを読み書き・削除されることです
+- **匿名テレメトリを明示的に無効化しました（`-master.telemetry=false`）** — SeaweedFS は 4.41 以降、master が匿名のクラスタ統計（版・OS・サーバ数・volume 数・ディスク量。クラスタ ID は再起動ごとに変わるインメモリの値）を `https://telemetry.seaweedfs.com/api/collect` へ 1 日 1 回送る設定が**既定**になりました（送信が始まるのは保存量が 10 GiB を超えてから）。本構成は閉じた環境で動かす前提のため、`docker-compose.yml` の `command` で切っています
+- **filer の署名鍵（`jwt.filer_signing.key`）を設定するようにしました。GHSA-5fx4-c9qp-36jc と CVE-2026-72920（filer の IAM gRPC）は、4.47 へ上げるだけでは閉じません** — 上流の認証検査は、鍵が設定されていないと何もしない作りです（4.47 の `weed/server/filer_server_handlers_iam_grpc.go` と `weed/s3api/s3api_server_grpc.go` が、どちらも「When no signing key is configured … this check is a no-op」と自ら記しています）。鍵が無い間は、IAM の gRPC（`CreateUser`・`PutPolicy`・`CreateAccessKey` 等）を同じ Docker ネットワークの中から認証なしで呼べます。`scripts/gen-secrets.sh` が `secrets/security.toml` を生成し、compose がそれを SeaweedFS に渡します。鍵が入ると、起動ログの行が `Registered IAM gRPC service on filer (admin Bearer token required)` に変わります（起動時に出ていた `no signing key found for STS service` の行も消えます）
+- **更新の前に `./scripts/gen-secrets.sh` を1回走らせてください** — 既存のパスワードは変わらず、`secrets/security.toml` だけが足されます（冪等です）。走らせずに `up` すると、SeaweedFS のコンテナは起動せず `bind source path does not exist` で止まります。鍵が効かないまま静かに動き続けるより、気づける方を選びました
+- **`weed filer.copy` は使えなくなる見込みです**（JWT を付ける処理を持たないため。**実機では確かめていません**） — 署名鍵を設定すると、filer は HTTP の書き込みに JWT を要求します。api 経由（S3 API）の読み書きは、S3 が同じプロセスの中で自ら署名するため影響しません。読み出しは `weed shell` の `fs.cat` で今までどおり可能です
+- **イメージの容量が約 2 倍になります（362MB → 729MB）** — 4.47 から `weed-worker` バイナリ（253MB）が同梱されたためです。本構成は worker を起動しないため、増えるのは `docker compose pull` の転送量とディスク使用量だけで、動作は変わりません
+- **更新する前にバックアップを取ってください**（`./scripts/backup.sh full`）。**4.47 から 4.39 へデータをそのまま戻せるかは確認できていません。** 4.39〜4.47 の 656 件の変更を調べた限りディスク上の形式を変えるものは見当たりませんでしたが、戻せることの保証にはなりません
+- `scripts/backup.sh`・`scripts/restore.sh` が tar 用の utility として流用している SeaweedFS イメージも、compose と同じ 4.47 に揃えました（従来は 4.22 のまま置き残されていました）
+- 既存環境の更新手順：`git pull` → `./scripts/backup.sh full` → `./scripts/gen-secrets.sh` → `docker compose up -d seaweedfs` → `docker compose exec nginx nginx -s reload`。既存のボリュームはそのまま使えます（データの移行作業はありません）。**最後の `nginx -s reload` は省かないでください**：nginx は起動のときに一度だけ名前を引くため、SeaweedFS を作り直すと S3 の経路（`https://<ホスト>:8443`）が 502 になります。docker secrets 方式で運用している場合は、`up` に `-f docker-compose.yml -f docker-compose.secrets.yml` を付けてください（[README の起動](README.md#起動) と同じ指定です）
+
 ## 2026-09-04
 
 ### Data

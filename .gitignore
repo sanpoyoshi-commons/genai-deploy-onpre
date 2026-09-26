@@ -14,7 +14,7 @@ secrets/*
 
 # SeaweedFS／Keycloak の管理下設定ファイルは秘密値を焼くため
 # git 追跡しない（gen-secrets.sh がテンプレ → secrets/ 配下の実体を生成、docker-compose は secrets/ を mount）。
-# テンプレ（*.template.json）のみ追跡。
+# テンプレ（*.template.json / *.template.toml）のみ追跡。
 seaweedfs/s3.config.json
 keycloak/import/genai-realm-realm.json
 
@@ -27,6 +27,10 @@ dozzle/users.yml
 
 # セキュリティスキャン出力（scripts/security-scan.sh、ローカル検証用・commit しない）
 security-reports/
+
+# バックアップ出力（scripts/backup.sh の既定の出力先＝リポジトリ直下の backups/）。
+# 業務 DB と認証 DB の平文ダンプ、SeaweedFS の /data の tar gz を含むため commit しない。
+backups/
 
 # 画像生成モデルの重み（容量大・運用者が手動 DL 配置。README/.gitkeep は追跡する）
 sdcpp/models/*

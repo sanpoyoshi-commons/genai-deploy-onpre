@@ -31,9 +31,14 @@ repos:
       # FS スキャン（依存脆弱性 / 設定ミス / 秘密）。docker 未導入ならスキップ。
       # --ignorefile で .trivyignore（根拠付き抑制）を適用。--skip-dirs で gitignore 済の
       # ローカル生成物（自己署名 TLS 鍵・secrets・モデル等＝コミットされない）を除外。
+      #   .law-build も除外する（法令 RAG のビルド作業用・数 GB の XML。走査すると時間切れになる）。
+      #   backups も除外する（backup.sh の出力＝DB の平文ダンプと SeaweedFS の tar gz。追跡外で容量も大きい）。
+      # image は tag＋digest で固定する。2026-03 に aquasec/trivy の latest が供給網侵害で悪性
+      #   image を指した事例があるため（GHSA-69fq-xp46-6x23）。採用版 0.74.0 は 2026-08-14
+      #   リリースで、採用時点（2026-09-26）で 43 日経過＝クールダウン下限 7 日を超過。
       - id: trivy
         name: trivy (fs vuln/misconfig/secret)
-        entry: bash -c 'if command -v docker >/dev/null 2>&1; then docker run --rm -v "$PWD":/src aquasec/trivy:latest fs --scanners vuln,misconfig,secret --ignorefile /src/.trivyignore --skip-dirs certs,secrets,security-reports,tei,seaweedfs,keycloak/import --exit-code 1 --quiet /src; else echo "[pre-push] docker 未導入のため trivy をスキップ"; fi'
+        entry: bash -c 'if command -v docker >/dev/null 2>&1; then docker run --rm -v "$PWD":/src aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 fs --scanners vuln,misconfig,secret --ignorefile /src/.trivyignore --skip-dirs certs,secrets,security-reports,tei,seaweedfs,keycloak/import,.law-build,backups --exit-code 1 --quiet /src; else echo "[pre-push] docker 未導入のため trivy をスキップ"; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]

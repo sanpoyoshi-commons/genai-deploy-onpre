@@ -1,7 +1,7 @@
 # LICENSES-THIRD-PARTY
 
 本ディレクトリは、`genai-deploy-onpre` の `docker-compose.yml` が起動する同梱 OSS
-（コンテナイメージ）の第三者ライセンスを集約・保全します（CLAUDE.md §6）。
+（コンテナイメージ）の第三者ライセンスを集約・保全します。
 
 本配布物は各 OSS の**ソースコードを再配布せず**、公開レジストリから**コンテナイメージを
 取得して起動**します。本ディレクトリは、各 OSS の**上流が配布する LICENSE / NOTICE
@@ -26,7 +26,7 @@
 | pgvector | 0.8.5 | `pgvector/pgvector:0.8.5-pg16@sha256:1d533553…79f0fb` | PostgreSQL | [`pgvector_PostgreSQL-License.txt`](./pgvector_PostgreSQL-License.txt) | `v0.8.5` |
 | pg_bigm | v1.2-20250903 | postgres カスタムビルドで導入（`postgres/Dockerfile` でソースビルド） | PostgreSQL | [`pg_bigm_PostgreSQL-License.txt`](./pg_bigm_PostgreSQL-License.txt) | `v1.2-20250903` |
 | Keycloak | 26.6.4 | `quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7…8cbce4` | Apache-2.0 | [`Keycloak_Apache-2.0.txt`](./Keycloak_Apache-2.0.txt) | `26.6.4` |
-| SeaweedFS | 4.39 | `chrislusf/seaweedfs:4.39@sha256:c7d6c721…3c12c6` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.39` |
+| SeaweedFS | 4.47 | `chrislusf/seaweedfs:4.47@sha256:ce9e796f…6bf882` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.47` |
 | ElasticMQ | v1.7.1 | `softwaremill/elasticmq:1.7.1@sha256:f1de391a…69da82` | Apache-2.0 | [`ElasticMQ_Apache-2.0.txt`](./ElasticMQ_Apache-2.0.txt) / [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) | `v1.7.1`（`LICENSE.txt`＋NOTICE） |
 | Ollama | v0.31.2 | `ollama/ollama:0.31.2@sha256:509fdf54…c62c0a` | MIT | [`Ollama_MIT.txt`](./Ollama_MIT.txt) | `v0.31.2` |
 | Text Embeddings Inference (TEI) | v1.9.3 (cpu) | `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30…1fea07` | Apache-2.0 | [`TEI_Apache-2.0.txt`](./TEI_Apache-2.0.txt) | `v1.9.3` |
@@ -94,7 +94,7 @@ Apache-2.0 §4(d) の NOTICE 同梱義務は、本来「Work または Derivativ
 |---|---|---|
 | ElasticMQ | あり | [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) 逐語保全 |
 | Keycloak | なし | 上流タグ `26.6.4` に NOTICE ファイル無し（取得時 404 で確認・2026-07-12 再確認） |
-| SeaweedFS | なし | 上流タグ `4.39` に NOTICE ファイル無し（同上） |
+| SeaweedFS | なし | 上流タグ `4.47` に NOTICE ファイル無し（2026-09-26 に上流のタグで再確認。LICENSE は 4.39 とバイト単位で同一） |
 | TEI | なし | 上流タグ `v1.9.3` に NOTICE ファイル無し（同上） |
 | vLLM | なし | 上流タグ `v0.21.0` に NOTICE ファイル無し（同上） |
 | NsJail | なし | 固定 SHA `079d70dd…` のリポルートに NOTICE ファイル無し（GitHub contents API で確認・2026-06-02）。自前ビルドで同梱するが NOTICE 不存在のため §4(d) 義務は発生しない |

@@ -1,0 +1,31 @@
+# SeaweedFS security.toml テンプレート。
+#
+# gen-secrets.sh が下の key の placeholder を secrets/seaweedfs_filer_signing_key の値で置換し、
+# secrets/security.toml として実体を生成する。実体は git 管理外（.gitignore の secrets/* ルール）。
+# 注意：この説明文に placeholder の表記そのものを書かないこと（sed は全置換のため、書くとコメント内に
+#   秘密値が焼き付く）。s3.config.template.json と同じ方針。
+#
+# なぜ必要か：filer の IAM gRPC（CreateUser / PutPolicy / CreateAccessKey 等）と、S3 側の IAM キャッシュ
+#   gRPC は、この鍵が空のときは認証の検査が何もしない（上流 4.47 の
+#   weed/server/filer_server_handlers_iam_grpc.go と weed/s3api/s3api_server_grpc.go が、どちらも
+#   「When no signing key is configured ... this check is a no-op」と自ら記している）。
+#   このため GHSA-5fx4-c9qp-36jc と CVE-2026-72920（filer の IAM gRPC）は、4.47 へ上げるだけでは
+#   閉じず、この鍵の設定が要る。鍵を入れると起動ログの行が
+#   「Registered IAM gRPC service on filer (admin Bearer token required)」に変わる。
+#
+# 副作用：
+#   - filer は HTTP の書き込みに JWT を要求するようになる。S3 API は同じプロセスの中で自ら署名するため、
+#     api 経由（nginx:8443 → S3）の読み書きは影響を受けない。一方 weed filer.copy は JWT を作らないので
+#     使えなくなる（読み出しは weed shell の fs.cat で可能）。
+#   - この鍵は S3 STS の signingKey のフォールバックにもなり、起動時の
+#     "no signing key found for STS service" の行が消える。
+#   - 読み取りの JWT は別項（jwt.filer_signing の read）で、ここでは設定しない＝読みは今までどおり。
+#
+# 置き場所：コンテナの /etc/seaweedfs/security.toml。SeaweedFS の探索順は ./security.toml →
+#   $HOME/.seaweedfs/security.toml → /etc/seaweedfs/security.toml の降順。コンテナの作業ディレクトリが
+#   /data＝volume の中なので ./security.toml は使わない。また /etc/seaweedfs には filer.toml
+#   （leveldb2 の設定）が既にあるため、ディレクトリごと mount してはいけない（ファイル単位で渡す）。
+
+[jwt.filer_signing]
+key = "@@FILER_SIGNING_KEY@@"
+expires_after_seconds = 10

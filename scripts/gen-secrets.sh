@@ -8,8 +8,11 @@
 #   keycloak_admin_user_password            … genai-realm 初回 SystemAdmin（人間 admin）の初期パスワード
 #   keycloak_admin_client_secret            … api/worker のサービスアカウント client secret（Admin REST 用）
 #   s3_secret_access_key                    … SeaweedFS S3 のシークレットキー（api/worker 用）
+#   seaweedfs_filer_signing_key             … SeaweedFS filer の書き込み署名鍵（filer の IAM gRPC と
+#                                             S3 の IAM キャッシュ gRPC を admin Bearer 必須にする）
 #   dozzle_admin_password                   … Dozzle simple 認証 admin の初期パスワード
 #   s3.config.json                          … SeaweedFS が読む S3 認証設定の実体（テンプレから生成）
+#   security.toml                           … SeaweedFS が読む security 設定の実体（テンプレから生成）
 #   keycloak-import/genai-realm-realm.json  … Keycloak の realm import 実体（テンプレから生成）
 #
 # secrets/ 外の生成物：
@@ -21,6 +24,7 @@
 #   （@@...@@ placeholder 入り）のみを置き、本スクリプトでテンプレ → 実体（secrets/ 配下＝.gitignore 対象）
 #   を sed で生成する：
 #     - seaweedfs/s3.config.template.json            → secrets/s3.config.json（@@S3_SECRET_KEY@@ を置換）
+#     - seaweedfs/security.template.toml             → secrets/security.toml（署名鍵の placeholder を置換）
 #     - keycloak/import/genai-realm-realm.template.json → secrets/keycloak-import/genai-realm-realm.json
 #       （@@KEYCLOAK_ADMIN_CLIENT_SECRET@@ と @@ADMIN_PASSWORD@@ を置換）
 #   docker-compose は secrets/ 配下の実体を mount する（既存パスから変更済み）。
@@ -91,11 +95,15 @@ write_secret() {
 render_secret_configs() {
   local s3_tpl="$REPO_ROOT/seaweedfs/s3.config.template.json"
   local s3_out="$SECRETS_DIR/s3.config.json"
+  local sec_tpl="$REPO_ROOT/seaweedfs/security.template.toml"
+  local sec_out="$SECRETS_DIR/security.toml"
+  local filer_key
   local kc_tpl="$REPO_ROOT/keycloak/import/genai-realm-realm.template.json"
   local kc_dir="$SECRETS_DIR/keycloak-import"
   local kc_out="$kc_dir/genai-realm-realm.json"
   local s3_secret kc_secret kc_admin_pw cnt
   s3_secret="$(cat "$SECRETS_DIR/s3_secret_access_key")"
+  filer_key="$(cat "$SECRETS_DIR/seaweedfs_filer_signing_key")"
   kc_secret="$(cat "$SECRETS_DIR/keycloak_admin_client_secret")"
   kc_admin_pw="$(cat "$SECRETS_DIR/keycloak_admin_user_password")"
 
@@ -111,6 +119,29 @@ render_secret_configs() {
     echo "[gen-secrets] 警告: secrets/s3.config.json に未置換 placeholder が残存（${cnt} 件）" >&2
   fi
   echo "[gen-secrets] 生成: secrets/s3.config.json"
+
+  # SeaweedFS security.toml：filer の書き込み署名鍵。これが空だと filer の IAM gRPC と S3 の IAM キャッシュ
+  # gRPC の認証検査が何もしない（上流 4.47 のコードが自らそう記している）ため、GHSA-5fx4-c9qp-36jc と
+  # CVE-2026-72920 は版を上げるだけでは閉じない。詳細は seaweedfs/security.template.toml の冒頭。
+  if [ ! -f "$sec_tpl" ]; then
+    echo "[gen-secrets] エラー: テンプレ不在 $sec_tpl" >&2
+    return 1
+  fi
+  # マウント footgun で出来た空ディレクトリがあれば除去してファイルに作り直す（dozzle/users.yml と同じ）。
+  if [ -d "$sec_out" ]; then
+    echo "[gen-secrets] secrets/security.toml がディレクトリ化していたため削除して作り直します"
+    rmdir "$sec_out" || {
+      echo "[gen-secrets] エラー: $sec_out が空でないディレクトリです。中身を確かめて手で片付けてください" >&2
+      return 1
+    }
+  fi
+  sed "s|@@FILER_SIGNING_KEY@@|${filer_key}|g" "$sec_tpl" > "$sec_out"
+  chmod 644 "$sec_out"
+  cnt="$(grep -c '@@' "$sec_out" || true)"
+  if [ "$cnt" != "0" ]; then
+    echo "[gen-secrets] 警告: secrets/security.toml に未置換 placeholder が残存（${cnt} 件）" >&2
+  fi
+  echo "[gen-secrets] 生成: secrets/security.toml"
 
   # Keycloak realm import：テンプレから実体生成。Keycloak 26.x は realm import の env 補間に regression あり
   # （Issue #33578 等）のためテンプレ方式で安全側に倒す。実体は --import-realm で初回のみ取込。
@@ -234,6 +265,8 @@ write_secret "keycloak_admin_client_secret"
 # 初回 SystemAdmin の初期パスワードはポリシ充足生成器で（記号必須）。
 write_secret "keycloak_admin_user_password" gen_admin_pw
 write_secret "s3_secret_access_key"
+# filer の書き込み署名鍵（英数のみ＝sed 置換と TOML 文字列の双方で安全）。
+write_secret "seaweedfs_filer_signing_key"
 write_secret "dozzle_admin_password"
 
 # テンプレ → 実体（secrets/ 配下）を生成。管理下ファイルは書き換えない（恒久対策）。
@@ -245,7 +278,7 @@ render_dozzle_users
 
 # テンプレート（.example）も配置（中身はダミー）。.gitignore 対象＝commit せず、本スクリプトが生成する
 # ローカル参照（必要な機密名の一覧。.example は静的 commit せず script 生成に一本化）。
-for n in postgres_password keycloak_db_password keycloak_admin_password keycloak_admin_user_password keycloak_admin_client_secret s3_secret_access_key dozzle_admin_password; do
+for n in postgres_password keycloak_db_password keycloak_admin_password keycloak_admin_user_password keycloak_admin_client_secret s3_secret_access_key seaweedfs_filer_signing_key dozzle_admin_password; do
   ex="$SECRETS_DIR/$n.example"
   [ -f "$ex" ] || printf '%s' "replace-with-a-strong-secret" > "$ex"
 done

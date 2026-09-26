@@ -136,14 +136,29 @@ services:
 
   # オブジェクトストレージ（S3 互換、MinIO 代替）。at-rest 暗号化 ON。
   seaweedfs:
-    image: chrislusf/seaweedfs:4.39@sha256:c7d6c721b30ae711db766bbbfd40192776e263d4e51e22f57baef7bef93c12c6
+    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
     # -s3.config で S3 認証を有効化。creds の実体は gen-secrets.sh がテンプレ
     # （seaweedfs/s3.config.template.json）から secrets/s3.config.json として生成し本サービスに mount する
     # （秘密値の git 焼付回避）。本番は creds をローテーションして上書き。
-    command: ['server', '-dir=/data', '-s3', '-s3.port=8333', '-s3.config=/etc/seaweed/s3.config.json', '-s3.encryptVolumeData', '-filer.encryptVolumeData']
+    # -master.telemetry=false：4.41 以降、master は匿名のクラスタ統計（版・OS・サーバ数・volume 数・
+    #   ディスク量）を https://telemetry.seaweedfs.com/api/collect へ 1 日 1 回送る既定に変わった
+    #   （送信は保存量が 10 GiB を超えてから）。閉じた環境で動かす前提のため明示的に切る。
+    command: ['server', '-dir=/data', '-master.telemetry=false', '-s3', '-s3.port=8333', '-s3.config=/etc/seaweed/s3.config.json', '-s3.encryptVolumeData', '-filer.encryptVolumeData']
     volumes:
       - seaweedfs_data:/data
       - ./secrets/s3.config.json:/etc/seaweed/s3.config.json:ro
+      # security.toml の jwt.filer_signing.key。filer の IAM gRPC（CreateUser / PutPolicy /
+      #   CreateAccessKey 等）と S3 の IAM キャッシュ gRPC を admin Bearer 必須にする。鍵が空だと
+      #   上流の認証検査は何もしないため、GHSA-5fx4-c9qp-36jc と CVE-2026-72920 は 4.47 へ上げる
+      #   だけでは閉じない。実体は gen-secrets.sh がテンプレから生成する。
+      # create_host_path: false ＝ ファイルが無いまま up すると docker が同名の空ディレクトリを作り、
+      #   鍵が効かないまま静かに起動してしまう。起動前に失敗させて気づけるようにする。
+      - type: bind
+        source: ./secrets/security.toml
+        target: /etc/seaweedfs/security.toml
+        read_only: true
+        bind:
+          create_host_path: false
     networks:
       - genai_internal
     healthcheck:
@@ -160,7 +175,7 @@ services:
   # 冪等作成する。weed shell は master 経由で作成（S3 creds 不要）。既存バケットはエラーになるが無視する（|| true）。
   # seaweedfs image を流用（追加 image 不要）。バケット名は api の *_BUCKET_NAME と一致させる。
   seaweedfs-init:
-    image: chrislusf/seaweedfs:4.39@sha256:c7d6c721b30ae711db766bbbfd40192776e263d4e51e22f57baef7bef93c12c6
+    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
     depends_on:
       seaweedfs:
         condition: service_healthy
@@ -304,6 +319,39 @@ services:
       # 既定サンプリング温度。空＝バックエンド既定（ollama OpenAI 互換は 1.0）。ダイアグラム生成等の
       # 構造化出力（mermaid）は高温だと書式が崩れやすく、0.2 程度に下げると遵守が安定する。0〜2 を採用。
       LLM_DEFAULT_TEMPERATURE: ${LLM_DEFAULT_TEMPERATURE:-}
+      # 判定（POST /api/judge）。1 トークン目の logprobs を読むため、OpenAI 互換ではなく
+      # ollama の**ネイティブ** /api/chat を叩く（JUDGE_OLLAMA_URL は /v1 を付けない）。判定モデルは既定
+      # チャットモデルと同一にして、OLLAMA_MAX_LOADED_MODELS=1 でのモデル入れ替え（ロード待ち・プロンプト
+      # キャッシュ消失）を避ける。未設定なら judge ルートだけ 503（他機能は起動も動作もする）。
+      JUDGE_OLLAMA_URL: ${JUDGE_OLLAMA_URL:-http://ollama:11434}
+      # 判定モデル（空なら OLLAMA_DEFAULT_CHAT_MODEL へ委譲）。
+      JUDGE_DEFAULT_MODEL: ${JUDGE_DEFAULT_MODEL:-}
+      # 判定に使ってよいモデル（カンマ区切り）。空なら既定モデルのみ許可（素通しにはしない）。
+      JUDGE_ALLOWED_MODELS: ${JUDGE_ALLOWED_MODELS:-}
+      # 切り詰め検知の基準。**ollama の実設定（下の ollama サービスと同じ既定式）へ追従させる**。
+      # ここを実設定より大きくすると、黙って切り詰められた入力で判定してしまう（fail-open）。
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-4096}
+      # 上の値より小さい値で明示的に上書きしたいときだけ設定する（空＝OLLAMA_CONTEXT_LENGTH に追従）。
+      JUDGE_CONTEXT_LENGTH: ${JUDGE_CONTEXT_LENGTH:-}
+      # 判定対象 state の上限バイト数（超過は 400）。切り詰め検知は UTF-8 バイト数をトークン数の上界として
+      # 使う厳密に安全側の見積もりのため、実際に通る state はこれより小さくなることがある（超過は 422）。
+      JUDGE_MAX_STATE_BYTES: ${JUDGE_MAX_STATE_BYTES:-8192}
+      # 時間制御は 3 層。チャット用の 30 分は判定には長すぎるため別設定にする。
+      # ①と②は同時に決める：**① を上げて ② を据え置くと ② が先に落ち、① が一度も発火しない。**
+      # ① 上流呼び出し 1 回（fetch 1 回）のタイムアウト。既定 300 秒は実測に基づく（2026-09-22 実機・
+      #    本番経路のコールドスタート 6 回）。**端から端までの最大 166.13 秒は単一試行の所要ではない**
+      #    ＝150 秒で 1 回目が打ち切られ約 15 秒の再試行が成功した合計値（6 回中 2 回がこの形）。
+      #    **単一試行の最悪は約 153 秒と推定**＝読み込み 139.34 秒＋プロンプト処理 約 14 秒。
+      #    300 秒の安全率は約 2.0。**短くするとコールドスタートが必ず落ちる。**
+      JUDGE_ATTEMPT_TIMEOUT_MS: ${JUDGE_ATTEMPT_TIMEOUT_MS:-300000}
+      # ② リクエスト全体（全問・リトライ・待機込み）の予算。問いは逐次処理のため、これが無いと
+      #    問い数（最大 16）に比例して伸び続ける。超過は 504。既定 600 秒：180 秒では、コールド
+      #    スタート 1 問が再試行込みで 166 秒かかった実測に対し 92% を使い切り、そこから先の再試行の
+      #    余地がゼロになる。**壊れた上流に張り付く最長時間を決めるのは ② ではなく ①×試行回数**で、
+      #    ② はその器にすぎない。
+      JUDGE_REQUEST_BUDGET_MS: ${JUDGE_REQUEST_BUDGET_MS:-600000}
+      # ③ リトライ待機の上限。壊れた上流が Retry-After で極端に長い待機を指示しても、待たずに失敗させる。
+      JUDGE_MAX_RETRY_WAIT_MS: ${JUDGE_MAX_RETRY_WAIT_MS:-60000}
       # 埋め込み（embedding）抽象化レイヤー（RAG）。chat とは独立の
       # EMBEDDING_BACKEND（既定 tei）で経路選択。tei はローカル既定＝tei サービス（ruri-v3-310m・OpenAI 互換
       # /v1/embeddings）へ接続する。tei は profile embedding（既定 up 外・llm から分離）＝api は tei 不在でも起動し、

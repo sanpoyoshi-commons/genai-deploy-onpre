@@ -68,13 +68,15 @@ fetch_first "Keycloak-NOTICE.txt" \
   "https://raw.githubusercontent.com/keycloak/keycloak/26.6.4/NOTICE" \
   "https://raw.githubusercontent.com/keycloak/keycloak/26.6.4/NOTICE.txt"
 
-# --- SeaweedFS 4.39 (Apache-2.0) ---
+# --- SeaweedFS 4.47 (Apache-2.0) ---
+# 4.39 → 4.47 で LICENSE はバイト単位で同一（sha256 d789d433…ef613・2026-09-26 に上流のタグで確認）。
+# 上流タグに NOTICE／NOTICE.txt は存在しないため SeaweedFS-NOTICE.txt は回収されない（4.47 も同じ）。
 fetch_first "SeaweedFS_Apache-2.0.txt" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.39/LICENSE" \
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.47/LICENSE" \
   "https://raw.githubusercontent.com/seaweedfs/seaweedfs/master/LICENSE"
 fetch_first "SeaweedFS-NOTICE.txt" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.39/NOTICE" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.39/NOTICE.txt"
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.47/NOTICE" \
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.47/NOTICE.txt"
 
 # --- ElasticMQ v1.7.1 (Apache-2.0) ---
 # 実ファイル名は LICENSE.txt（拡張子なし LICENSE は上流に無く 404。GitHub contents API で確認・2026-06-02）。
