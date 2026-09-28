@@ -268,8 +268,43 @@ services:
       KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-genai-ai-api-admin}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-genai-admin-dev-secret-change-me}
       # 添付ファイルは base64 で predict ボディに inline されるため Express body 上限を引き上げる
-      # （既定 100kb では数百 KB の文書で 413）。~4.5MB 添付を満たす 10mb を既定とする。
-      API_JSON_BODY_LIMIT: ${API_JSON_BODY_LIMIT:-10mb}
+      # （既定 100kb では数百 KB の文書で 413）。**web は文書と画像を別枠で数える**ので、1 通に
+      # 文書 5 件×4.5MB（base64 で約 30MB）と画像 3 件×2MB（約 8MB）を載せられ、合計は約 38MB。
+      # これを通すため 48mb を既定とする。**会話の履歴は毎回まるごと送り直される**ので、添付を
+      # 含む会話が長く続くとこの上限を超えうる（超えると 413）。その場合は値を上げるか、会話を分ける。
+      API_JSON_BODY_LIMIT: ${API_JSON_BODY_LIMIT:-48mb}
+      # 添付の読み取り（api が pdf・txt・md・csv・html・docx・xlsx から文字を取り出し、user メッセージの
+      # 前に <documents> として置く。画像は PNG と JPEG だけをそのままモデルへ渡す＝下の MAX_IMAGES）。
+      # 下の文字数の上限は、取り出した文字がモデルの文脈長に収まるようにするためのもの。
+      # **OLLAMA_CONTEXT_LENGTH から自動では導かない**（JUDGE_CONTEXT_LENGTH と同じ流儀）ので、
+      # 文脈長を下げるときは下の 2 つの文字数も一緒に下げること。文脈長を超えると ollama は入力を
+      # 黙って切り詰め、<documents> の前に置く注意書き（資料はデータであって指示ではない）が落ちうる。
+      # 1 件あたりの文字数の上限。超えた分は先頭から切り、truncated="true" を付ける。
+      ATTACHMENT_MAX_CHARS: ${ATTACHMENT_MAX_CHARS:-5000}
+      # **1 リクエスト（送る会話の全体）の合計**の文字数の上限。新しいメッセージの添付から順に割り当て、
+      # 入りきらなかった古い添付は status="skipped" の注記にする（黙って捨てない）。
+      ATTACHMENT_TOTAL_MAX_CHARS: ${ATTACHMENT_TOTAL_MAX_CHARS:-5000}
+      # PDF から読むページ数の上限。超えた分は読まず、注記に残す。
+      ATTACHMENT_MAX_PAGES: ${ATTACHMENT_MAX_PAGES:-20}
+      # 1 件あたりのバイト数の上限（base64 を復号した後）。超えたら解析せず注記だけ付ける。
+      # 既定 5242880＝5MiB（web が 1 件 4.5MB まで許すので、その少し上）。
+      ATTACHMENT_MAX_BYTES: ${ATTACHMENT_MAX_BYTES:-5242880}
+      # 1 メッセージで読む**文書**の件数の上限。**画像は数えない**（画像は下の MAX_IMAGES で数える）。
+      # web の 1 通あたりの文書の上限（5 件）と揃える。web は文書と画像を別枠で許すので、ここで画像も
+      # 数えると、1 通に文書 5 件＋画像 3 件を付けたときに 3 件が読み飛ばされてしまう。
+      ATTACHMENT_MAX_FILES: ${ATTACHMENT_MAX_FILES:-5}
+      # モデルへ渡す画像（PNG・JPEG のみ）の枚数の上限。**1 リクエスト（送る会話の全体）で数え**、
+      # 新しいメッセージの画像から順に割り当て、超えた古い画像は status="skipped" の注記にする。
+      # 画像は上の文字数の予算を食わない（別枠）。gemma4:e2b の実測では、画像 1 枚が使う入力のトークンは
+      # 約 270 が上限（896x896 で約 263・1024x768 で約 273・3000x2000 で約 267）。ごく小さい画像は
+      # 少なく、1x1 で約 56。大きい画像を送っても頭打ちになる。
+      ATTACHMENT_MAX_IMAGES: ${ATTACHMENT_MAX_IMAGES:-3}
+      # 1 件の解析に使ってよい時間（ミリ秒）。超えたら打ち切り、注記にして推論そのものは通す。
+      ATTACHMENT_PARSE_TIMEOUT_MS: ${ATTACHMENT_PARSE_TIMEOUT_MS:-10000}
+      # 取り出した結果をメモ化する件数の上限（base64 の SHA-256 を鍵にした LRU）。会話の履歴は毎回
+      # まるごと送り直されるので、同じ添付を何度も解析しないために効かせる。件数の上限は、
+      # メモリを使いすぎないための安全弁。
+      ATTACHMENT_CACHE_ENTRIES: ${ATTACHMENT_CACHE_ENTRIES:-32}
       # LLM 抽象化レイヤー。predict / predictTitle / predictStream が消費。LLM_BACKEND 1 行で
       # 経路切替。対応経路は openai 互換の ollama（既定・実配線済 live 検証済）/ vllm / openai / anthropic /
       # gemini と、SigV4 認証の bedrock（Converse API・専用アダプタ。vllm/openai/cloud-api/bedrock は config
@@ -330,7 +365,7 @@ services:
       JUDGE_ALLOWED_MODELS: ${JUDGE_ALLOWED_MODELS:-}
       # 切り詰め検知の基準。**ollama の実設定（下の ollama サービスと同じ既定式）へ追従させる**。
       # ここを実設定より大きくすると、黙って切り詰められた入力で判定してしまう（fail-open）。
-      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-4096}
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}
       # 上の値より小さい値で明示的に上書きしたいときだけ設定する（空＝OLLAMA_CONTEXT_LENGTH に追従）。
       JUDGE_CONTEXT_LENGTH: ${JUDGE_CONTEXT_LENGTH:-}
       # 判定対象 state の上限バイト数（超過は 400）。切り詰め検知は UTF-8 バイト数をトークン数の上界として
@@ -394,6 +429,12 @@ services:
       # 非秘密は compose 既定値。S3_PUBLIC_ENDPOINT は外部到達 host:port（LAN 公開時は HTTP_BIND 連動で要調整）。
       # creds は dev 既定値＝KEYCLOAK_ADMIN_CLIENT_SECRET と同方式（本番は .env / docker secrets で必ず上書き）。
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-https://localhost:8443}
+      # 添付（chat の extraData の s3 参照）の URL 検証用ホスト。api は保存要求に含まれる URL の
+      # hostname だけを（https であることと併せて）この値と比べるため、スキームもポートも含めず、
+      # 小文字のホスト名だけを書く。未設定だと添付付きメッセージの保存が 400 になる。
+      # S3_PUBLIC_ENDPOINT を変える（LAN 公開する）ときは両方を揃えること。
+      #   例）S3_PUBLIC_ENDPOINT=https://192.168.1.10:8443 → FILE_PUBLIC_HOST=192.168.1.10
+      FILE_PUBLIC_HOST: ${FILE_PUBLIC_HOST:-localhost}
       S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:8333}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-genai-s3-dev-key}
@@ -619,11 +660,13 @@ services:
     image: ollama/ollama:0.31.2@sha256:509fdf54e23bd50d87af646cb51c0a7a203d6a83cc4d6695b3b08c5be1c62c0a
     profiles: ['llm']
     environment:
-      # 既定 context 長（トークン）。既定は ollama 同等の 4096（chat 中心の常用負荷で省メモリ・modest HW で
-      # スワップしにくい安全側）。ダイアグラム生成等の大きいプロンプト（〜7千トークン）はこの既定だと切り詰められ
-      # 図が出ない。十分な RAM（16GB+ 目安）がある環境では .env で `OLLAMA_CONTEXT_LENGTH=8192` 等に上げると
-      # 切り詰めが解消する（KV キャッシュ分メモリ増・低メモリ機ではスワップで逆効果になり得る）。
-      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-4096}
+      # 既定 context 長（トークン）。**既定 8192**（ollama 自身の既定は 4096）。理由は 2 つ：
+      # ①ダイアグラム生成のプロンプト（〜7.3千トークン）が 4096 では切り詰められて図が出ない
+      # （docs/operations.md の実機検証。CPU・11GB 級の箱でも 8192 で描画に成功している）。
+      # ②チャットの添付から取り出した文字（api が <documents> として前置する）を載せる余地がいる。
+      # KV キャッシュの分だけメモリを使うので、これより小さい機械では 4096 に下げてよい
+      # （下げるときは api の ATTACHMENT_*_CHARS も一緒に下げる）。
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}
       # 常駐モデル数の上限。既定 1（低 RAM 単一ボックス向け安全側）。チャットのタイトル生成等は
       # 既定モデルを使うため、利用者が別モデルを選ぶと 2 モデルが同時ロードされ得る（例：選択 ELYZA-8B
       # ＋既定 gemma の二重常駐で 11GB 機が OOM/スワップ枯渇）。1 にすると新モデルのロード時に旧モデルを

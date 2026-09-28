@@ -226,6 +226,27 @@ docker compose up -d      # 変更のあったコンテナのみ再作成
 を参照してください。pgvector の更新を含む場合は、後述の `ALTER EXTENSION vector UPDATE;`
 が既存 DB ボリュームで必要です。
 
+> **`.env` に書いた値は compose の既定より優先されます。** 既定値が変わった更新では、`.env` に
+> 同じ変数が書いてあると**古い値のまま動きます**（コンテナを作り直しても変わりません）。
+> **添付の読み取りを入れた更新では、次の 2 行を確認してください**。それより前の `.env.example` から作った `.env` には、
+> どちらも古い値で入っています。
+>
+> | 変数 | 新しい既定 | 古い値のままだと |
+> |---|---|---|
+> | `API_JSON_BODY_LIMIT` | `48mb` | 添付の合計が約 7MB を超えたところで 413。**この 7MB は 1 通ではなく会話全体の合計**（前のメッセージの添付も毎回まるごと送り直されるため、1 通ずつは小さくても会話が続くと超える） |
+> | `OLLAMA_CONTEXT_LENGTH` | `8192` | ダイアグラムが出ない。加えて、既定の添付の上限 5000 字（`gemma4:e2b` で約 2800 トークン）が文脈の大半を占めるため、会話と答えの余白が足りず、入りきらない分が切り詰められるおそれがある |
+>
+> メモリが苦しい機械では `OLLAMA_CONTEXT_LENGTH` は `4096` のままで構いません。そのときは
+> `ATTACHMENT_MAX_CHARS` と `ATTACHMENT_TOTAL_MAX_CHARS` も下げてください
+> （[env-reference.md](env-reference.md#添付の読み取りチャットに添付した文書と画像)）。
+>
+> 書き換えたら `docker compose up -d api` と `docker compose --profile llm up -d ollama` で作り直し、
+> **`docker compose exec nginx nginx -s reload` で nginx を読み直してください**。nginx は起動のときに
+> 一度だけ名前を引くため、api を作り直すと、読み直すまで api への経路が 502 になることがあります
+> （作り直しで api の IP が変わったときです）。
+> secrets オーバーレイ運用なら、`up` は 2 ファイル指定（`-f docker-compose.yml -f
+> docker-compose.secrets.yml`）にします。
+
 **API（`genai-ai-api-onpre`）**
 
 ```bash
@@ -423,14 +444,14 @@ web の「ダイアグラム」機能は、種別ごとの**大きなシステ�
 
 | 設定 | 値 | 理由 |
 |---|---|---|
-| `OLLAMA_CONTEXT_LENGTH` | `8192` | 既定 4096 ではプロンプト（〜7.3K）が切り詰められ mermaid 命令が落ちて図が出ない。7168 でも僅かに切り詰めるため 8192 が必要。 |
+| `OLLAMA_CONTEXT_LENGTH` | `8192`（**既定**） | 4096 ではプロンプト（〜7.3K）が切り詰められ mermaid 命令が落ちて図が出ない。7168 でも僅かに切り詰めるため 8192 が必要。この検証を受けて 8192 を既定にしたので、**設定は不要**（下げている場合だけ戻す）。 |
 | 温度 | `0.2`（**自動**） | 既定（1.0）だと mermaid 書式が崩れ（`A="x"`/`-->|B` 等）レンダラが拒否する。低温で `A["x"]`/`-->` の遵守が安定。**ダイアグラム機能は web 側が自動で 0.2 を送る**ため設定不要（通常チャットには影響しない）。 |
 | モデル | ELYZA-8B 等の 8B 級 | `llama3.2:3b` は構文崩壊（`子graph` 等）で描画不可。8B で有効な mermaid を生成できた。 |
 | `OLLAMA_MAX_LOADED_MODELS` | `1`（既定） | タイトル生成にも選択モデルを使う（=同一モデル）ので通常は二重常駐しないが、念のため既定 1 で新モデルのロード時に旧モデルを自動アンロードして OOM を防ぐ。 |
 
 ```bash
-# .env 例（ダイアグラム生成を CPU で試す場合）。温度は web が自動で下げるため不要。
-#   OLLAMA_CONTEXT_LENGTH=8192
+# 環境変数の例（ダイアグラム生成を CPU で試す場合）。温度は web が自動で下げるため不要。
+# OLLAMA_CONTEXT_LENGTH は既定が 8192 なので、下げていなければ書かなくてよい。
 #   MODEL_IDS=["gemma4:e2b","hf.co/elyza/Llama-3-ELYZA-JP-8B-GGUF"]
 # 反映（ollama は env 変更で再作成、api も）
 docker compose up -d ollama api nginx
@@ -637,6 +658,13 @@ nginx の access_log も統一された JSON 形式（`service` / `level` / `com
 > 注：本配布物は外部公開を nginx のみに限定します。Docker の `ports` は
 > ホストの ufw を迂回するため、LAN 公開時はホスト側 iptables/ufw による補助制限が
 > 必須です（今後のデプロイ手順書で詳述）。
+
+### 無視してよい警告
+
+- api のログに出る `Warning: Cannot load "@napi-rs/canvas"` は**想定内**です。PDF から文字を
+  取り出すライブラリ（pdf.js）が、**ページを絵として描く**ときだけ使う部品を探して出す警告で、
+  本構成はその部品を同梱していません（イメージを小さく保つため）。**添付の PDF から文字を取り出す
+  処理には影響しません。**
 
 ---
 
