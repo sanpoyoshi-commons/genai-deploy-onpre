@@ -4,6 +4,16 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-10-10
+
+### Security
+
+- **同梱 Ollama を 0.31.2 → 0.35.1 へ更新しました（[CVE-2026-103663](https://cert.pl/en/posts/2026/10/CVE-2026-103663/) ／ [CVE-2026-85180](https://www.vulncheck.com/advisories/ollama-0.30.0-through-0.33.2-ssrf-via-cross-host-tensor-blob-redirect)）** — 変更はイメージ 1 行のみで、設定・データの移行はありません。**既存のモデルはそのまま使えます**（`ollama list` の内容は変わりません）
+- **CVE-2026-103663（モデル取得時のパストラバーサル・CWE-23）** — `/api/pull` がレイヤの digest を検証しないままファイルの置き場所を組み立てるため、細工した digest でモデル置き場の外へファイルを書き込めます。`/usr/lib/ollama` に書き込めると、次の再起動で root としてコードが実行されます。0.35.0 で入った `validateBlobs()` が、取得・送信の入口で digest の形を検証して塞ぎます。**CERT Polska の告知は影響範囲を 0.34.2〜0.35.0 としていますが、この検証は 0.35.0 で初めて入ったもので、これまで同梱していた 0.31.2 にも検証の無い同じコードがあったため、対象として扱いました**
+- **CVE-2026-85180（取得時のリダイレクト先を検証しない SSRF・CWE-918）** — 攻撃者が用意したレジストリからモデルを取得すると、Ollama に内部のホストへ要求を出させられます。0.31.2 は影響範囲（0.30.0〜0.33.2）に含まれます
+- **本構成の Ollama はホストへポートを publish しておらず、内部ネットワーク（`genai_internal`）からのみ到達します**（nginx は Ollama を中継しません。api もモデルの取得・送信の API は呼びません）。効くとしても、同じ Docker ネットワーク内の別のコンテナが先に侵害された場合か、細工されたレジストリからモデルを取得した場合に限られます
+- 既存環境の更新手順：`git pull` → `docker compose --profile llm up -d ollama`（[docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) 参照）
+
 ## 2026-09-28
 
 ### Added
