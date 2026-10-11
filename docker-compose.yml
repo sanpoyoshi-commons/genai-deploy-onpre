@@ -171,9 +171,10 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
-  # S3 バケット初期化（一回限り、FileStorage）。file/audio/artifacts の 3 バケットを
+  # S3 バケット初期化（一回限り、FileStorage）。file/audio/artifacts/knowledge の 4 バケットを
   # 冪等作成する。weed shell は master 経由で作成（S3 creds 不要）。既存バケットはエラーになるが無視する（|| true）。
   # seaweedfs image を流用（追加 image 不要）。バケット名は api の *_BUCKET_NAME と一致させる。
+  # 既存環境でも `docker compose up -d` で init が再実行され、足りないバケットだけが足される。
   seaweedfs-init:
     image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
     depends_on:
@@ -182,7 +183,7 @@ services:
     entrypoint: ['/bin/sh', '-c']
     command:
       - |
-        for b in "${FILE_BUCKET_NAME:-genai-files}" "${AUDIO_BUCKET_NAME:-genai-audio}" "${ARTIFACTS_BUCKET_NAME:-genai-artifacts}"; do
+        for b in "${FILE_BUCKET_NAME:-genai-files}" "${AUDIO_BUCKET_NAME:-genai-audio}" "${ARTIFACTS_BUCKET_NAME:-genai-artifacts}" "${KNOWLEDGE_BUCKET_NAME:-genai-knowledge}"; do
           echo "s3.bucket.create -name $$b" | weed shell -master=seaweedfs:9333 || true
         done
     networks:
@@ -408,6 +409,22 @@ services:
       RAG_TOP_M: ${RAG_TOP_M:-10}
       RAG_FETCH_K: ${RAG_FETCH_K:-20}
       RAG_BIGM_SIMILARITY_LIMIT: ${RAG_BIGM_SIMILARITY_LIMIT:-0.2}
+      # ナレッジ集への投入の上限。利用者が画面から入れた文書を、api が同期で
+      # 原本（KNOWLEDGE_BUCKET_NAME のオブジェクト）→抽出テキスト→チャンクと埋め込みの順に作る。
+      # 抽出は添付と同じ抽出器を使うが、**上限は添付（ATTACHMENT_*）と別に持つ**（用途が違うため）。
+      # **添付と違い、超えたら切り詰めずに投入そのものを断る**。ナレッジ集で文書の後半が黙って欠けると、
+      # 検索で見つからず「該当なし」になり、原因が利用者から見えないため。
+      # 値はすべて 10 進の整数で書く（api のコード内既定と目で突き合わせられるように）。
+      # 1 文書あたりのチャンク数の上限。投入にかかる時間を決めるのは実質ここ（1 チャンクごとに埋め込みを作る）。
+      KNOWLEDGE_MAX_CHUNKS: ${KNOWLEDGE_MAX_CHUNKS:-300}
+      # 原本 1 件のバイト数の上限（20MiB）。添付（5MiB）より大きい文書を見込んだ値。
+      KNOWLEDGE_MAX_BYTES: ${KNOWLEDGE_MAX_BYTES:-20971520}
+      # 抽出したテキストの文字数の上限。300 チャンク×1,000 字（RAG_MAX_CHUNK_SIZE）の目安。
+      KNOWLEDGE_MAX_CHARS: ${KNOWLEDGE_MAX_CHARS:-300000}
+      # pdf から読むページ数の上限。添付（20 ページ）より大きい文書を見込んだ値。
+      KNOWLEDGE_MAX_PAGES: ${KNOWLEDGE_MAX_PAGES:-300}
+      # 1 件の抽出に使ってよい時間（ミリ秒）。添付（10 秒）の 12 倍。
+      KNOWLEDGE_PARSE_TIMEOUT_MS: ${KNOWLEDGE_PARSE_TIMEOUT_MS:-120000}
       # リランカ。cross-encoder（ruri-v3-reranker-310m）で retrieve 候補を
       # 並べ替え、法令ドメインの Hit@1 を引き上げる（bench 実証 45%→90%）。RERANK_ENABLED で有効化（既定 false＝
       # tei-reranker 未起動環境を壊さない・graceful degradation で吸収）。有効時は RERANK_BASE_URL（tei-reranker
@@ -439,10 +456,14 @@ services:
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-genai-s3-dev-key}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-genai-s3-dev-secret-change-me}
-      # バケット名（file / audio / artifacts）。config.ts が解決して bucket 引数で渡す。
+      # バケット名（file / audio / artifacts / knowledge）。config.ts が解決して bucket 引数で渡す。
       FILE_BUCKET_NAME: ${FILE_BUCKET_NAME:-genai-files}
       AUDIO_BUCKET_NAME: ${AUDIO_BUCKET_NAME:-genai-audio}
       ARTIFACTS_BUCKET_NAME: ${ARTIFACTS_BUCKET_NAME:-genai-artifacts}
+      # ナレッジ集に入れた文書の原本（投入の上限は上の KNOWLEDGE_* を参照）。チャットの添付（FILE_BUCKET_NAME）とは
+      # 寿命と削除の規則が違うので、バケットを分ける。添付は会話を消せば用済みになるが、こちらは
+      # 利用者が消すまで残り、抽出のやり直しの元になる。
+      KNOWLEDGE_BUCKET_NAME: ${KNOWLEDGE_BUCKET_NAME:-genai-knowledge}
       # ExApp apiKey 暗号鍵（任意・base64(32B) or hex(64)）。設定時は createExApp の setApiKey で AES-256-GCM 暗号化
       # （worker と同一値であること＝復号に必須）。未設定なら ex_app_api_keys に平文保存（localhost 単一運用の既定）。
       EXAPP_APIKEY_ENC_KEY: ${EXAPP_APIKEY_ENC_KEY:-}

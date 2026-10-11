@@ -176,6 +176,28 @@
 | `EMBEDDING_MAX_BATCH_TOKENS` / `_MAX_CLIENT_BATCH_SIZE` | `4096` / `8` | TEI warmup バッチ。低メモリ機の OOM 回避に絞る。 |
 | `EMBEDDING_DEFAULT_TIMEOUT_MS` | `300000` | 埋め込みタイムアウト。 |
 
+### ナレッジ集への投入（自分の文書を入れて検索と質問をする）
+
+> 画面から入れた文書を、api が**同期**で 3 段に分けて作ります：**原本**をそのまま
+> `KNOWLEDGE_BUCKET_NAME` のバケットへ、**抽出テキスト**と**チャンク・埋め込み**を PostgreSQL へ。
+> 抽出に使う処理はチャットの添付と同じですが、**上限は添付（`ATTACHMENT_*`）とは別**に持ちます。
+> **添付と違い、上限を超えたときは切り詰めずに投入そのものを断ります**。ナレッジ集で文書の後半が
+> 黙って欠けると、検索で見つからないまま「該当なし」になり、原因が利用者から見えないためです。
+> 投入にかかる時間を実質決めるのは `KNOWLEDGE_MAX_CHUNKS` です（1 チャンクごとに埋め込みを作るため）。
+
+| 変数 | 既定 | 説明 |
+|---|---|---|
+| `KNOWLEDGE_MAX_CHUNKS` | `300` | 1 文書あたりのチャンク数の上限。超えたら投入を断る。 |
+| `KNOWLEDGE_MAX_BYTES` | `20971520` | 原本 1 件のバイト数の上限（20MiB）。添付（5MiB）より大きい文書を見込んだ値。 |
+| `KNOWLEDGE_MAX_CHARS` | `300000` | 抽出したテキストの文字数の上限。`KNOWLEDGE_MAX_CHUNKS` × `RAG_MAX_CHUNK_SIZE`（300×1,000）の目安。 |
+| `KNOWLEDGE_MAX_PAGES` | `300` | pdf から読むページ数の上限。添付（20 ページ）より大きい文書を見込んだ値。 |
+| `KNOWLEDGE_PARSE_TIMEOUT_MS` | `120000` | 1 件の抽出に使ってよい時間（2 分）。添付（10 秒）の 12 倍。 |
+
+> `KNOWLEDGE_BUCKET_NAME`（原本の置き場所）は [§11](#11-オブジェクトストレージseaweedfs--s3) にあります。
+>
+> **既定値はすべて仮置き**です。読める形式は添付と同じ（`pdf`・`txt`・`md`・`csv`・`html`・`docx`・`xlsx`）で、
+> 画像は受け付けません（文字が取れないため）。
+
 ### リランカ（精度向上・`--profile rerank` 必要）
 
 | 変数 | 既定 | 説明 |
@@ -236,7 +258,7 @@
 | `EXAPP_ALLOW_PRIVATE_ENDPOINTS` / `EXAPP_ENDPOINT_ALLOWLIST` | `false` / 空 | SSRF ガード。ローカル ExApp を叩くには `true`＋allowlist。 |
 | `EXAPP_HTTP_TIMEOUT_MS` | `30000` | 外部呼び出しタイムアウト。 |
 | `EXAPP_ARTIFACT_THRESHOLD_BYTES` | `10240` | これ超の出力は artifacts バケットへ退避。 |
-| `EXAPP_APIKEY_ENC_KEY` | 空 | apiKey 暗号鍵（任意）。設定時は worker と同一値必須 → 機密扱い [§11](#11-機密値と-secrets)。 |
+| `EXAPP_APIKEY_ENC_KEY` | 空 | apiKey 暗号鍵（任意）。設定時は worker と同一値必須 → 機密扱い [§12](#12-機密値と-secrets)。 |
 
 ## 11. オブジェクトストレージ（SeaweedFS / S3）
 
@@ -247,6 +269,7 @@
 | `S3_INTERNAL_ENDPOINT` | `http://seaweedfs:8333` | 内部直結（通常変更不要）。 |
 | `S3_REGION` / `S3_ACCESS_KEY_ID` | `us-east-1` / `genai-s3-dev-key` | 署名 region / アクセスキー。 |
 | `FILE_BUCKET_NAME` / `AUDIO_BUCKET_NAME` / `ARTIFACTS_BUCKET_NAME` | `genai-*` | バケット名。 |
+| `KNOWLEDGE_BUCKET_NAME` | `genai-knowledge` | ナレッジ集に入れた文書の**原本**の置き場所。チャットの添付（`FILE_BUCKET_NAME`）とは寿命と削除の規則が違うため、バケットを分けている（添付は会話を消せば用済みだが、こちらは利用者が消すまで残り、抽出のやり直しの元になる）。投入の上限は [§5 の「ナレッジ集への投入」](#ナレッジ集への投入自分の文書を入れて検索と質問をする) を参照。 |
 | `API_JSON_BODY_LIMIT` | `48mb` | api リクエストボディ上限。添付は base64 で本文に載る。**web は文書と画像を別枠で数える**ため、1 通に文書 5 件×4.5MB（base64 で約 30MB）と画像 3 件×2MB（約 8MB）＝**合計 約 38MB** を載せられる。**会話の履歴は毎回まるごと送り直される**ので、添付を含む会話が長く続くとこの上限を超えうる（超えると 413）。そのときは値を上げるか、会話を分ける。 |
 
 > `S3_SECRET_ACCESS_KEY` は機密 → [§12](#12-機密値と-secrets)。
