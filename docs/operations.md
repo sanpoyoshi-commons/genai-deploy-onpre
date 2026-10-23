@@ -16,6 +16,7 @@
 - [画像生成モデルの配置（sdcpp）](#画像生成モデルの配置sdcpp)
 - [文字起こしモデルの pull（whisper）](#文字起こしモデルの-pullwhisper)
 - [証明書の信頼登録](#証明書の信頼登録ブラウザ警告の解消)
+- [画面に付けるヘッダ（Content-Security-Policy）](#画面に付けるヘッダcontent-security-policy)
 - [ログ閲覧（Dozzle ＋ logs ヘルパー）](#ログ閲覧dozzle--logs-ヘルパー)
 - [バックアップ・リストア](#バックアップリストア)
 
@@ -574,6 +575,84 @@ docker run --rm --network ${PROJ}_genai_internal curlimages/curl:latest \
 
 公開ドメインで運用する場合は Let's Encrypt／商用証明書への差し替えが可能です
 （詳細は今後のデプロイ手順書）。
+
+---
+
+## 画面に付けるヘッダ（Content-Security-Policy）
+
+nginx は、画面（web）を配る応答に `Content-Security-Policy` を付けます。方針は 2 つで、
+**利用者の端末から第三者へ要求を出さない**ことと、**この画面を枠（frame）に入れて使わせない**ことです。
+web 側も同じ方針（書体を外部から読まない・Markdown の外部画像を描かない）で作ってあり、
+ここはそれを配信の側でも固めて、作り込みで戻ってしまうのを止めるためのものです。
+同じ場所で、次の 2 本も付けます。
+
+- `X-Content-Type-Options: nosniff` — 宣言した種別のとおりに扱わせ、中身を見て別の種別として
+  解釈し直すのをやめさせます（出典：[MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options)）。
+- `Referrer-Policy: same-origin` — 同じ配信元の中では参照元を渡し、外の宛先へ移るときは渡しません
+  （出典：[MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referrer-Policy)）。
+
+既定（`S3_PUBLIC_ENDPOINT=https://localhost:8443`）では、次の値が 1 行で付きます。
+
+```
+default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob: https://localhost:8443; media-src 'self' data: https://localhost:8443;
+font-src 'self'; connect-src 'self' https://localhost:8443; object-src 'none'; base-uri 'none';
+form-action 'self'; frame-ancestors 'none'
+```
+
+- 実体は `nginx/templates/csp.conf.template` です。nginx の起動時に `S3_PUBLIC_ENDPOINT` を展開して
+  `add_header` の 1 行を作り、`nginx/conf.d/default.conf` の `location /` が読み込みます
+  （`config.js` と同じ流儀です）。**directive ごとに「web のどこが要求するのか」をテンプレートに
+  書いてあります**ので、狭めたり広げたりするときはそこを読んでください。
+- **同梱ストレージの公開先（`S3_PUBLIC_ENDPOINT`）が値に入ります。** 添付の出し入れはブラウザが
+  署名付き URL へ直接行うため、`connect-src`（PUT と GET）と `img-src` / `media-src`（履歴での表示）に
+  その宛先が要ります。公開先は画面とは別のポート＝別の配信元になるためです。LAN 公開でホスト名や
+  ポートを変えたときは `.env` の 1 か所を変えるだけで追従します（web の再 build は要りません）。
+- **付くのは画面の配信（`location /`）だけです。** `/auth/` には付けません。Keycloak は自分で
+  `Content-Security-Policy: frame-src 'self'; frame-ancestors 'self'; object-src 'none';` を返すため、
+  重ねると画面が壊れうるからです。`/api/` は html を返さないため付けません。
+- **反映はコンテナの作り直しです**（`.env` の `S3_PUBLIC_ENDPOINT` を変えたときも同じ）。起動時に
+  1 度だけ展開するため、`nginx -s reload` では変わりません。**作り直すときは、起動に使っている
+  `COMPOSE_PROFILES` と同じ値を付けてください**。nginx は起動時にこの値から `config.js` の
+  `enabledUseCases` を組み立てるため、付けずに作り直すとメニュー（法令調査・ナレッジ集・
+  ダイアグラム生成など）が消えます。
+
+  ```bash
+  # docker secrets を使っている場合（2 ファイル指定・単一サービスなので --no-deps）
+  COMPOSE_PROFILES=llm,embedding \
+    docker compose -f docker-compose.yml -f docker-compose.secrets.yml \
+    up -d --no-deps --force-recreate nginx
+  # .env 方式だけの場合
+  COMPOSE_PROFILES=llm,embedding \
+    docker compose up -d --no-deps --force-recreate nginx
+  ```
+
+  `COMPOSE_PROFILES` を `.env` に書いている場合はコマンドに前置しなくても拾われます。
+  `llm,embedding` は例です（自分の構成の値に置き換えてください。対応表は
+  [プロファイル（機能の ON/OFF）](#プロファイル機能の-onoff)）。
+
+- 効いているかの確認（3 本返ること。`-T` は端末の割り当てを切る指定で、出力をパイプへ渡すときに
+  必要です）：
+
+  ```bash
+  docker compose exec -T nginx \
+    wget -S -q -O /dev/null --no-check-certificate https://127.0.0.1/ 2>&1 \
+    | grep -iE 'content-security-policy|x-content-type-options|referrer-policy'
+  ```
+
+  メニューが消えていないかも一緒に見ておくと確実です（`COMPOSE_PROFILES` の付け忘れの確認）。
+
+  ```bash
+  docker compose exec -T nginx cat /var/lib/genai-web/config.js | tail -4
+  ```
+
+- 違反はブラウザの console に出ます（報告先は設定していません）。画面の一部が描かれないときは、
+  console の `Refused to ...` の行に、どの directive が止めたのかが出ます。
+- **古い web を配っている場合**（書体を外部から読み込む版）は、その読み込みが止まり、console に
+  違反が出ます。表示は端末の書体へ落ちて続きますが、`./scripts/build-web.sh` で作り直してください。
+- **さらに狭めるときの目安**：`script-src` の `'wasm-unsafe-eval'` を外すとコードの色付けが外れ
+  （色の無い素のコードになります）、`style-src` の `'unsafe-inline'` を外すとコードの色と
+  ダイアグラムの体裁が失われます。どちらも描画そのものは止まりませんが、見た目は落ちます。
 
 ---
 

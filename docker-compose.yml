@@ -45,13 +45,13 @@ services:
   # pg_bigm（全文検索拡張）は postgres/Dockerfile のカスタムビルドで導入済み。
   # 拡張有効化は postgres/initdb/01-extensions.sql（CREATE EXTENSION vector / pg_bigm）。
   postgres:
-    # pgvector 0.8.5 + pg_bigm v1.2-20250903 のカスタムイメージ。
+    # pgvector 0.8.7 + pg_bigm v1.2-20250903 のカスタムイメージ。
     # ベースイメージ digest は postgres/Dockerfile 内で固定。初回は build が必要：
     #   docker compose build postgres
     build:
       context: ./postgres
       dockerfile: Dockerfile
-    image: genai-postgres-onpre:pg16-pgvector0.8.5-pgbigm1.2
+    image: genai-postgres-onpre:pg16-pgvector0.8.7-pgbigm1.2
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-genai}
       POSTGRES_USER: ${POSTGRES_USER:-genai}
@@ -75,7 +75,7 @@ services:
 
   # Keycloak 専用 DB（公式推奨の分離）。
   keycloak-db:
-    image: postgres:16.14-alpine@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb
+    image: postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -97,7 +97,7 @@ services:
   # 認証・IdP（Cognito 代替）。
   # nginx 前段 + 内部 HTTP の公式サポート構成。
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.2@sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
     command: ['start', '--optimized=false', '--http-enabled=true', '--hostname-strict=false', '--proxy-headers=xforwarded', '--health-enabled=true', '--import-realm']
     environment:
       KC_DB: postgres
@@ -136,7 +136,7 @@ services:
 
   # オブジェクトストレージ（S3 互換、MinIO 代替）。at-rest 暗号化 ON。
   seaweedfs:
-    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     # -s3.config で S3 認証を有効化。creds の実体は gen-secrets.sh がテンプレ
     # （seaweedfs/s3.config.template.json）から secrets/s3.config.json として生成し本サービスに mount する
     # （秘密値の git 焼付回避）。本番は creds をローテーションして上書き。
@@ -176,7 +176,7 @@ services:
   # seaweedfs image を流用（追加 image 不要）。バケット名は api の *_BUCKET_NAME と一致させる。
   # 既存環境でも `docker compose up -d` で init が再実行され、足りないバケットだけが足される。
   seaweedfs-init:
-    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     depends_on:
       seaweedfs:
         condition: service_healthy
@@ -554,7 +554,7 @@ services:
 
   # リバースプロキシ + TLS termination + 静的配信。唯一の外部公開層。
   nginx:
-    image: nginx:1.30.4-alpine3.24@sha256:59d10bca5c674965ef4ff884715000dd60ef5567c36663523f108eec8e4105d4
+    image: nginx:1.30.6-alpine3.24@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
     environment:
       # 実行時モデルメニュー（on-premise 可変化）。api サービスと同一の .env 値を共有し、
       # entrypoint の envsubst で /config.js を生成＝web セレクタと api 許可リストの単一の真実。
@@ -567,13 +567,21 @@ services:
       # になる（二重設定の解消・web 再 build 不要）。ENABLED_USE_CASES を明示すればそれを優先（方式 c）。
       COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
       ENABLED_USE_CASES: ${ENABLED_USE_CASES:-}
+      # 画面に付ける Content-Security-Policy の組み立てに使う。同梱ストレージ（SeaweedFS）の
+      # 公開先＝署名付き URL の出し入れ（connect-src）と添付画像・動画の表示（img-src / media-src）で
+      # 許す宛先。api の S3_PUBLIC_ENDPOINT と同じ値（同じ既定）にすること。LAN 公開でホスト名を
+      # 変えたときは、ここも api と一緒に追従する（entrypoint が起動時に 1 度だけ展開するため、
+      # 値を変えたら nginx の作り直しが必要＝reload では変わらない）。
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-https://localhost:8443}
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/templates:/etc/nginx/genai-templates:ro
       - ./certs:/etc/nginx/certs:ro
       - ./web:/usr/share/nginx/html:ro
-    # 起動時に config.js を .env から envsubst 生成 → 公式 entrypoint で nginx 起動。
+    # 起動時に config.js と CSP の 1 行を .env から envsubst 生成 → 公式 entrypoint で nginx 起動。
     # html は read-only マウントのため書込可パス（/var/lib/genai-web）へ生成し default.conf で alias。
+    # CSP は conf.d が read-only マウントのため /var/lib/genai-nginx へ生成し default.conf の
+    # location / が include する（方針と directive ごとの理由は csp.conf.template に書いてある）。
     # envsubst の対象変数を明示し、conf 内の nginx 変数（$uri 等）を誤展開しない。
     # （$$ は compose のリテラル $ エスケープ）
     # 機能 ON/OFF（profile 連動）：envsubst は条件分岐できないため、事前に POSIX sh で COMPOSE_PROFILES を
@@ -600,6 +608,10 @@ services:
         envsubst '$$MODEL_IDS $$IMAGE_GENERATION_MODEL_IDS $$ENABLED_USE_CASES' \
           < /etc/nginx/genai-templates/config.js.template \
           > /var/lib/genai-web/config.js
+        mkdir -p /var/lib/genai-nginx
+        envsubst '$$S3_PUBLIC_ENDPOINT' \
+          < /etc/nginx/genai-templates/csp.conf.template \
+          > /var/lib/genai-nginx/csp.conf
         exec /docker-entrypoint.sh nginx -g 'daemon off;'
     ports:
       # 外部公開は nginx のみ。既定 localhost。LAN 公開は HTTP_BIND を 192.168.x.x に。
@@ -625,7 +637,7 @@ services:
 
   # 開発用 SMTP（SES 代替）。Keycloak からのメールを受信。本番は外部 SMTP へ切替。
   mailpit:
-    image: axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
+    image: axllent/mailpit:v1.31.5@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: '1'
       MP_SMTP_AUTH_ALLOW_INSECURE: '1'
@@ -646,16 +658,18 @@ services:
   # ログ閲覧 UI（CloudWatch 代替）。
   # セキュリティ必須セット：localhost バインド + simple 認証 + docker.sock:ro + actions/shell 無効 + NO_ANALYTICS。
   dozzle:
-    image: amir20/dozzle:v10.6.9@sha256:6f4644814cce31e11fe80f2610515df6a5a2e40120b4087c298a72df8d65866b
+    image: amir20/dozzle:v11.3.2@sha256:0d8cf9702f422d65a7e8ad238785dc6b05b2b9c43c945f6bbdf3358ad5da5f6c
     environment:
       DOZZLE_NO_ANALYTICS: 'true'
       DOZZLE_ENABLE_ACTIONS: 'false'
       DOZZLE_ENABLE_SHELL: 'false'
       DOZZLE_AUTH_PROVIDER: simple
+      # レジストリへのイメージ更新の問い合わせを止める（v11 から既定で有効）。
+      DOZZLE_IMAGE_CHECK_MODE: 'off'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # simple 認証ユーザー定義。実ファイルは dozzle/users.yml（手動生成・.gitignore）。
-      # 生成：docker run --rm amir20/dozzle:v10.5.3 generate <user> --password <pw> --name <name> > dozzle/users.yml
+      # 生成：docker run --rm amir20/dozzle:v11.3.2 generate <user> --password <pw> --name <name> > dozzle/users.yml
       - ./dozzle/users.yml:/data/users.yml:ro
     ports:
       - '${HTTP_BIND:-127.0.0.1}:${DOZZLE_PORT:-9980}:8080'
@@ -926,7 +940,7 @@ services:
   # named volume /data は root 所有を継承するため、起動前に 999 へ chown する。
   # 既存スタックの nginx alpine を流用（新規 OSS を増やさない。BSD-2-Clause、LICENSES 計上済）。
   elasticmq-init:
-    image: nginx:1.30.4-alpine3.24@sha256:59d10bca5c674965ef4ff884715000dd60ef5567c36663523f108eec8e4105d4
+    image: nginx:1.30.6-alpine3.24@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
     profiles: ['queue']
     user: "0:0"
     entrypoint: ['/bin/sh', '-c']

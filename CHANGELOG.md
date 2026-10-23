@@ -4,6 +4,72 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-10-22
+
+### Security
+
+同梱イメージ 7 つを、修正の入った版へ更新しました。**既定の構成では Dozzle と Mailpit の UI は `127.0.0.1` に bind し、DB はホストへポートを出しません。`HTTP_BIND` を変えて LAN に出している環境は、早めに更新してください。**
+
+- **Mailpit を v1.30.7 → v1.31.5 へ**（[GHSA-2vgv-6hcp-mf43](https://github.com/axllent/mailpit/security/advisories/GHSA-2vgv-6hcp-mf43) ／ CVE-2026-84697 ／ CVE-2026-46603 ／ CVE-2026-56851）— サムネイルの生成で数 GB のメモリを確保させられる不備、SSRF の拒否リストの抜け、SMTP コマンドの注入などを直した版です。配布バイナリを新しい Go（1.27.2）と `golang.org/x/net` でビルドし直しており、Go の標準ライブラリと x/net 由来の既知の脆弱性もあわせて解消します
+- **Dozzle を v10.6.9 → v11.3.2 へ**（GHSA-7hjf-g4w8-w279 ／ GHSA-8683-6wwr-q7rq ／ GHSA-v879-vjhp-gmhc ／ CVE-2026-102332 ／ GHSA-p66q-2gfp-8v55 ／ CVE-2026-73087 ／ CVE-2026-56851 ／ CVE-2026-84445）— Mailpit と同じく、Go の標準ライブラリと x/net 由来の既知の脆弱性もあわせて解消します
+- **SeaweedFS を 4.47 → 4.48 へ**（CVE-2026-81870 ／ CVE-2026-84445）— `scripts/backup.sh`・`scripts/restore.sh` が使うイメージも同じ版にしました
+- **keycloak-db の PostgreSQL を 16.14 → 16.15 へ**（[PostgreSQL 16.15](https://www.postgresql.org/docs/16/release-16-15.html) の security fix）— 業務 DB も、下の pgvector の更新で 16.15 になります。同じ 16 系のマイナー更新なので、dump と restore は要りません。本構成は 16.15 の告知が手当てを求める拡張（`pgcrypto`・`btree_gist`・`ltree`）と論理レプリケーションを使っていません
+- **pgvector を 0.8.5 → 0.8.7 へ**（CVE-2026-103484 ／ CVE-2026-18022・どちらも IVFFlat の索引の構築でのバッファオーバーフロー。CVE-2026-18022 は 32bit の環境だけの問題です）— 本構成の索引は HNSW で、IVFFlat は使っていません。修正は共有ライブラリの差し替えで効きます
+- **nginx を 1.30.4 → 1.30.6 へ（njs 1.0.2 を含む）**（CVE-2026-15176 ／ CVE-2026-93479 ／ CVE-2026-95101 ／ CVE-2026-97629 ／ CVE-2026-97205 ／ CVE-2026-90439 と njs の修正。[CHANGES-1.30](https://nginx.org/en/CHANGES-1.30)）— ビルドの構成（configure）は 1.30.4 と同じで、設定の変更はありません
+- **Keycloak を 26.7.2 → 26.8.1 へ**（26.7.3〜26.8.1 の security fix。[26.8.1 のリリースノート](https://www.keycloak.org/2026/10/keycloak-2681-released)）— 同梱の `bcprov-jdk18on` も 1.84 → 1.86 になります
+
+### Changed
+
+- **⚠️ Keycloak は更新するとデータベースの形が新しくなり、前の版へは戻せません**：初回の起動で DB のスキーマを自動で移行します（そのぶん起動に時間がかかります）。**更新の前に `./scripts/backup.sh full` を必ず取ってください。** 切り戻しはイメージの版を戻すだけでは済まず、`keycloak-db` のリストアが要ります
+- **Keycloak 26.8 では、しばらく操作しないとリフレッシュトークンの期限が早く来ることがあります** — リフレッシュトークンの期限が、利用者のセッションの idle の時間で頭打ちになるようになったためです。画面で再ログインを求められたら、ログインし直してください
+- **Dozzle は更新の後に一度ログアウトされます** — v11 でセッションの鍵の持ち方が変わったためです。鍵はコンテナの中に置かれるので、コンテナを作り直すたびに再ログインになることがあります
+- **Dozzle のコンテナのイメージ更新の問い合わせは止めてあります** — v11 は既定で、動いているコンテナのイメージについてレジストリへ新しい版を問い合わせます。外への問い合わせを増やさないよう `DOZZLE_IMAGE_CHECK_MODE: 'off'` を設定しました（Dozzle 自身の新しい版の確認はこれまでどおりです）
+- **Mailpit は永続ボリュームを持たないため、コンテナの作り直しで受信済みのメールは消えます**（開発用の検証データです）
+
+### 更新手順（既存環境から、この版へ上げるとき）
+
+```bash
+./scripts/backup.sh full                   # Keycloak は戻せないため必須
+git pull
+docker compose pull
+docker compose build postgres              # 業務 DB は pgvector の新しい版でビルドし直す
+docker compose up -d
+```
+
+- 業務 DB は、上の手順のあと任意で `ALTER EXTENSION vector UPDATE;` を流すと、拡張の版の表示が 0.8.7 に進みます。修正そのものはビルドし直した時点で効いています（0.8.5 → 0.8.7 の更新スクリプトは SQL 文を持ちません）。
+
+```bash
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "ALTER EXTENSION vector UPDATE;"'
+```
+
+## 2026-10-20
+
+`genai-web-onpre` 側の変更です。2026-10-18 の `Content-Security-Policy` と組で働くため、本リポジトリを更新するときは web もあわせて更新してください（手順は下）。
+
+### Security
+
+- **画面が外部の書体を読み込まないようにしました** — 画面の HTML から、Google Fonts の CSS を読み込む `<link>` を外し、書体は端末に入っているものに任せます。書体の指定は変えていないので、端末に Noto Sans JP・Noto Sans Mono があればそれが使われます。画面を開いただけで利用者のアドレスなどが第三者へ渡ることと、外へ出られない網で画面が出るまで待たされることを避けるためです。**古い web のままだと、この読み込みは 2026-10-18 の `Content-Security-Policy` に止められます**
+- **チャットなどの Markdown の中の、外部の画像を読み込まないようにしました** — 描くのは、同じ配信元の画像と、端末の中にあるもの（`data:`・`blob:`）だけです。それ以外は読み込まずに、代替テキストと宛先を文字で出します（宛先を開くかどうかは利用者が決めます）。Markdown の中身はモデルの出力や貼り付けた文字で、宛先をこちらで選べないためです
+- **図の生成に使う mermaid を 11.16.1 → 12.2.0 へ**（同梱の KaTeX が 0.18.10 になり、[GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7) ／ CVE-2026-103923 を解消します）— 図の見た目は変えていません。mermaid 12 で変わった既定の theme と look を、これまでの値で指定しています
+- **DOMPurify を 3.4.16 → 3.4.17 へ**（[GHSA-mrv2-3pqr-j5jr](https://github.com/advisories/GHSA-mrv2-3pqr-j5jr) ／ [GHSA-c6gr-qvv4-5v3f](https://github.com/advisories/GHSA-c6gr-qvv4-5v3f) ／ [GHSA-cg2g-xh64-v4q7](https://github.com/advisories/GHSA-cg2g-xh64-v4q7)）— mermaid が使う依存です。3 件はどれも DOMPurify の特定の設定（`IN_PLACE`・`PARSER_MEDIA_TYPE`・`SAFE_FOR_TEMPLATES`）を使ったときの不備で、mermaid はこれらの設定を使っていませんが、修正版にしました
+
+### Changed
+
+- **配信する画面に elkjs（Eclipse Public License 2.0）が入るようになりました** — mermaid 12 の依存で、図の自動レイアウトに使います。ライセンス本文とソースの入手先は、`genai-web-onpre` の `LICENSES-THIRD-PARTY/elkjs_EPL-2.0.txt` と `NOTICE` にあります（[LICENSES-THIRD-PARTY/README.md](LICENSES-THIRD-PARTY/README.md) の web フロントエンドの節にも案内を置きました）
+
+### 更新手順（web）
+
+```bash
+git -C ../genai-web-onpre pull
+./scripts/build-web.sh    # web/ を再ビルド・配置（nginx は web/ を都度配信）
+```
+
+## 2026-10-18
+
+### Security
+
+- **画面を配る応答に `Content-Security-Policy` を付けました（あわせて `X-Content-Type-Options: nosniff` と `Referrer-Policy: same-origin` も）** — 画面が取りに行ける先を、この配信元と、すでに端末の中にあるもの（`data:` / `blob:`）と、同梱ストレージの公開先（`S3_PUBLIC_ENDPOINT`）だけに限り、**画面を開いただけで利用者の端末から第三者へ要求が出ることがない**ようにしました。あわせて**この画面を枠（frame）に入れて使うことを許しません**。公開先は `.env` の値から組み立てるので、LAN 公開でホスト名やポートを変えても追従します（web の再 build は要りません）。`/auth/`（Keycloak は自分で同じヘッダを返します）と `/api/` には付けません。**反映は nginx の作り直しです**（起動時に 1 度だけ組み立てるため `nginx -s reload` では変わりません）。**作り直すときは起動に使っている `COMPOSE_PROFILES` と同じ値を付けてください**（付けないとメニューが消えます）。付く値と、directive ごとに web のどこが要求するのか、コマンドの形は [docs/operations.md「画面に付けるヘッダ（Content-Security-Policy）」](docs/operations.md#画面に付けるヘッダcontent-security-policy) に書きました
+
 ## 2026-10-11
 
 ### Added

@@ -1,0 +1,56 @@
+# genai-deploy-onpre — 画面（web の SPA）の応答に付ける Content-Security-Policy
+#
+# nginx の entrypoint が .env の S3_PUBLIC_ENDPOINT を envsubst で展開して
+# /var/lib/genai-nginx/csp.conf を生成し、default.conf の `location /` が include する
+# （config.js と同じ流儀＝LAN 公開でホスト名やポートを変えても、web を再 build せずに追従する）。
+# 注：envsubst は明示した変数だけを展開するため、この説明文中の変数名は置換されない。
+#
+# 方針は 2 つ。
+#   1. 利用者の端末から第三者へ要求を出さない。許す取得先は、この配信元（'self'）と、
+#      すでに端末の中にあるもの（data: / blob:）と、同梱ストレージの公開先だけにする。
+#      web 側も同じ方針（書体を外部から読まない・Markdown の外部画像を描かない）で、
+#      ここはそれを配信の側でも固め、作り込みで戻ってしまうのを止めるためのもの。
+#   2. この画面を枠（frame）に入れて使わせない。frame-ancestors は <meta> では効かないため
+#      （MDN: Web/HTTP/Reference/Headers/Content-Security-Policy/frame-ancestors）、
+#      html ではなく配信の側で付ける。公開先が設定で変わるのも、html に書けない理由のひとつ。
+#
+# directive ごとの理由（要るかどうかは配信物と web のソースで確かめたもの）:
+#   default-src 'self'
+#     既定を同じ配信元だけにする。下で名前を挙げない取得先（worker・frame・manifest 等）はこれに従う。
+#   script-src 'self' 'wasm-unsafe-eval'
+#     バンドルと /config.js はどちらも同じ配信元。'wasm-unsafe-eval' が要るのは、コードの色付け
+#     （shiki）が正規表現エンジンを WebAssembly としてその場で組み立てるため（assets/index-*.js の
+#     WebAssembly.instantiate。モジュールの中身は assets/wasm-*.js に base64 で同梱しており、
+#     外へ取りに行くわけではない）。配信物に eval( と new Function( は 1 件も無いので、文字列を
+#     コードとして実行する許可（'unsafe-eval'）は与えず、WebAssembly に限った keyword にとどめた。
+#     この keyword を知らない古いブラウザでは色付けが外れ、コードは色の無い素のまま出る（描画は止まらない）。
+#   style-src 'self' 'unsafe-inline'
+#     2 か所が要求する。①コードの色付けは、字句ごとに style 属性を付けた html を返す（style 属性は
+#     style-src-attr → 無ければ style-src の判定）。②ダイアグラム（mermaid）は描いた SVG の先頭へ
+#     <style> を差し込む。どちらも中身が描くたびに変わるため、hash も nonce も置けない。
+#     外すと、コードの色と図の体裁が失われる（描画そのものは残る）。
+#   img-src 'self' data: blob: <S3_PUBLIC_ENDPOINT>
+#     data: は生成した画像・コード実行の成果物・送信前の添付の下見。blob: は web 側が
+#     「すでに手元にあるもの」として描くことを許している形。公開先は、添付した画像を履歴で
+#     見るときの署名付き URL（別ポートのため、画面とは別の配信元になる）。
+#     任意の https: は入れない＝外部の画像は読まない。
+#   media-src 'self' data: <S3_PUBLIC_ENDPOINT>
+#     動画の添付。送信前の下見は data:、履歴での再生は公開先の署名付き URL。
+#   font-src 'self'
+#     外部の書体は読まない。配信物に書体ファイルは無く、端末に入っている書体に任せる
+#     （無ければ OS の既定へ落ちる）。
+#   connect-src 'self' <S3_PUBLIC_ENDPOINT>
+#     /api・/auth・/config.js は同じ配信元。公開先は、署名付き URL への直接の PUT と GET
+#     （ファイルの出し入れは api を通さずブラウザが行う）。
+#   object-src 'none'
+#     埋め込みプラグインは使わない。
+#   base-uri 'none'
+#     <base> は使っていない。相対の宛先の基点を差し替えられないようにする。
+#   form-action 'self'
+#     画面の form はすべて script が受け取り、ほかの宛先へは出さない。
+#   frame-ancestors 'none'
+#     この画面は枠に入れて使わない。
+#
+# always を付けるのは、add_header が既定では 200 系などの応答に限られるため（どの状態の応答でも
+# 同じ方針を載せる）。付ける場所は web の配信だけ＝/auth/（Keycloak）と /api/ には付けない。
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${S3_PUBLIC_ENDPOINT}; media-src 'self' data: ${S3_PUBLIC_ENDPOINT}; font-src 'self'; connect-src 'self' ${S3_PUBLIC_ENDPOINT}; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;

@@ -264,7 +264,7 @@
 
 | 変数 | 既定 | 説明 |
 |---|---|---|
-| `S3_PUBLIC_ENDPOINT` | `https://localhost:8443` | presigned URL のブラウザ到達用。LAN 公開時は実 IP/FQDN に。 |
+| `S3_PUBLIC_ENDPOINT` | `https://localhost:8443` | presigned URL のブラウザ到達用。LAN 公開時は実 IP/FQDN に。**nginx はこの値から画面の `Content-Security-Policy` を組み立てる**（署名付き URL への出し入れと、添付画像・動画の表示を許す宛先）。起動時に 1 度だけ展開するため、変えたら nginx を作り直すこと（`reload` では変わらない）。→ [operations.md](operations.md#画面に付けるヘッダcontent-security-policy) |
 | `FILE_PUBLIC_HOST` | `localhost` | 添付（chat の `extraData` の s3 参照）の URL 検証用ホスト名。api は保存要求の URL の **hostname だけ**をこの値と比べる（`https` 必須）ため、スキームもポートも含めず小文字で書く。**`S3_PUBLIC_ENDPOINT` を変えたら、その hostname を必ずここにも設定する**（例：`https://192.168.1.10:8443` → `192.168.1.10`）。不一致だと添付付きメッセージの保存が 400 になる。 |
 | `S3_INTERNAL_ENDPOINT` | `http://seaweedfs:8333` | 内部直結（通常変更不要）。 |
 | `S3_REGION` / `S3_ACCESS_KEY_ID` | `us-east-1` / `genai-s3-dev-key` | 署名 region / アクセスキー。 |

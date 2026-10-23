@@ -220,13 +220,13 @@ version 17, which is not compatible with this version 16`）。**この経路を
 Docker Hub からの削除に備える）。
 
 ```bash
-# 例：postgres 16.14 のイメージを tar に export しておく
-docker save -o /var/backups/genai/postgres-pg16.14.tar \
-  postgres:16.14-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
+# 例：postgres 16.15 のイメージを tar に export しておく
+docker save -o /var/backups/genai/postgres-pg16.15.tar \
+  postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
 
 # 業務 DB のカスタムイメージ（pgvector + pg_bigm）も同様に退避できる
 docker save -o /var/backups/genai/genai-postgres-pg16.tar \
-  genai-postgres-onpre:pg16-pgvector0.8.2-pgbigm1.2
+  genai-postgres-onpre:pg16-pgvector0.8.7-pgbigm1.2
 ```
 
 #### SeaweedFS のバージョン跨ぎ（minor）と切戻し

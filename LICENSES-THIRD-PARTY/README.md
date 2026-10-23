@@ -22,17 +22,17 @@
 
 | OSS | バージョン | イメージ@digest | SPDX | 保全ファイル | 回収元タグ |
 |---|---|---|---|---|---|
-| PostgreSQL | 16.14 | `postgres:16.14-alpine@sha256:e013e867…5a28cb`（keycloak-db）/ pgvector 同梱（業務 DB） | PostgreSQL | [`PostgreSQL_PostgreSQL-License.txt`](./PostgreSQL_PostgreSQL-License.txt) | `REL_16_14`（COPYRIGHT） |
-| pgvector | 0.8.5 | `pgvector/pgvector:0.8.5-pg16@sha256:1d533553…79f0fb` | PostgreSQL | [`pgvector_PostgreSQL-License.txt`](./pgvector_PostgreSQL-License.txt) | `v0.8.5` |
+| PostgreSQL | 16.15 | `postgres:16.15-alpine@sha256:721873c3…6080ea`（keycloak-db）/ pgvector 同梱（業務 DB） | PostgreSQL | [`PostgreSQL_PostgreSQL-License.txt`](./PostgreSQL_PostgreSQL-License.txt) | `REL_16_15`（COPYRIGHT） |
+| pgvector | 0.8.7 | `pgvector/pgvector:0.8.7-pg16@sha256:7b822b0a…99b90a` | PostgreSQL | [`pgvector_PostgreSQL-License.txt`](./pgvector_PostgreSQL-License.txt) | `v0.8.7` |
 | pg_bigm | v1.2-20250903 | postgres カスタムビルドで導入（`postgres/Dockerfile` でソースビルド） | PostgreSQL | [`pg_bigm_PostgreSQL-License.txt`](./pg_bigm_PostgreSQL-License.txt) | `v1.2-20250903` |
-| Keycloak | 26.6.4 | `quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7…8cbce4` | Apache-2.0 | [`Keycloak_Apache-2.0.txt`](./Keycloak_Apache-2.0.txt) | `26.6.4` |
-| SeaweedFS | 4.47 | `chrislusf/seaweedfs:4.47@sha256:ce9e796f…6bf882` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.47` |
+| Keycloak | 26.8.1 | `quay.io/keycloak/keycloak:26.8.1@sha256:79c623a2…16d244` | Apache-2.0 | [`Keycloak_Apache-2.0.txt`](./Keycloak_Apache-2.0.txt) | `26.8.1` |
+| SeaweedFS | 4.48 | `chrislusf/seaweedfs:4.48@sha256:4e61d15f…d7872d` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.48` |
 | ElasticMQ | v1.7.1 | `softwaremill/elasticmq:1.7.1@sha256:f1de391a…69da82` | Apache-2.0 | [`ElasticMQ_Apache-2.0.txt`](./ElasticMQ_Apache-2.0.txt) / [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) | `v1.7.1`（`LICENSE.txt`＋NOTICE） |
-| Ollama | v0.31.2 | `ollama/ollama:0.31.2@sha256:509fdf54…c62c0a` | MIT | [`Ollama_MIT.txt`](./Ollama_MIT.txt) | `v0.31.2` |
+| Ollama | v0.35.1 | `ollama/ollama:0.35.1@sha256:292ee794…7e278c` | MIT | [`Ollama_MIT.txt`](./Ollama_MIT.txt) | `v0.35.1` |
 | Text Embeddings Inference (TEI) | v1.9.3 (cpu) | `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30…1fea07` | Apache-2.0 | [`TEI_Apache-2.0.txt`](./TEI_Apache-2.0.txt) | `v1.9.3` |
-| nginx | 1.30.4 stable | `nginx:1.30.4-alpine3.24@sha256:59d10bca…4105d4` | BSD-2-Clause | [`nginx_BSD-2-Clause.txt`](./nginx_BSD-2-Clause.txt) | `release-1.30.4` |
-| Mailpit | v1.30.4 | `axllent/mailpit:v1.30.4@sha256:5a49a77c…82d4f6` | MIT | [`Mailpit_MIT.txt`](./Mailpit_MIT.txt) | `v1.30.4` |
-| Dozzle | v10.6.9 | `amir20/dozzle:v10.6.9@sha256:6f464481…65866b` | MIT | [`Dozzle_MIT.txt`](./Dozzle_MIT.txt) | `v10.6.9` |
+| nginx | 1.30.6 stable | `nginx:1.30.6-alpine3.24@sha256:97036422…cfb3b5` | BSD-2-Clause | [`nginx_BSD-2-Clause.txt`](./nginx_BSD-2-Clause.txt) | `release-1.30.6` |
+| Mailpit | v1.31.5 | `axllent/mailpit:v1.31.5@sha256:94f6b70c…0234ea` | MIT | [`Mailpit_MIT.txt`](./Mailpit_MIT.txt) | `v1.31.5` |
+| Dozzle | v11.3.2 | `amir20/dozzle:v11.3.2@sha256:0d8cf970…da5f6c` | MIT | [`Dozzle_MIT.txt`](./Dozzle_MIT.txt) | `v11.3.2` |
 | speaches | 0.8.3 (cpu) | `ghcr.io/speaches-ai/speaches:0.8.3-cpu@sha256:21e3df06…f53ef8` | MIT | [`speaches_MIT.txt`](./speaches_MIT.txt) | `v0.8.3` |
 | Node.js | v24.15.0 LTS | （api リポ自前ビルドのベースイメージ `node:24.15.0-alpine`） | Node.js（MIT 系） | [`Node.js_MIT.txt`](./Node.js_MIT.txt) | `v24.15.0` |
 
@@ -76,6 +76,7 @@
 | 上流 | digital-go-jp/genai-web（v1.0.3 由来の派生。詳細は姉妹リポ genai-web-onpre の UPSTREAM.md） |
 | ライセンス本文 | [`genai-web_MIT.txt`](./genai-web_MIT.txt) |
 | 第三者表記 | [`genai-web_THIRD-PARTY-NOTICES.txt`](./genai-web_THIRD-PARTY-NOTICES.txt)（ビルド時にバンドルされる npm 依存＝@aws-amplify〔Apache-2.0〕・多数の MIT/BSD ライブラリ等の権利表記を逐語保全） |
+| 追加の第三者表記 | elkjs 0.9.3（mermaid の依存・EPL-2.0）がビルドで配信バンドルに入ります。本文とソースの入手先は姉妹リポ genai-web-onpre の [`LICENSES-THIRD-PARTY/elkjs_EPL-2.0.txt`](https://github.com/sanpoyoshi-commons/genai-web-onpre/blob/main/LICENSES-THIRD-PARTY/elkjs_EPL-2.0.txt) と [`NOTICE`](https://github.com/sanpoyoshi-commons/genai-web-onpre/blob/main/NOTICE) にあります（本リポジトリには写していません） |
 
 **位置づけの明記**：本リポジトリは web のビルド済み成果物を再配布しません（`web/` は
 `.gitignore` 対象のローカルビルド出力）。ただし利用者がビルドして配信するフロントエンドには
@@ -93,8 +94,8 @@ Apache-2.0 §4(d) の NOTICE 同梱義務は、本来「Work または Derivativ
 | OSS | NOTICE | 結果 |
 |---|---|---|
 | ElasticMQ | あり | [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) 逐語保全 |
-| Keycloak | なし | 上流タグ `26.6.4` に NOTICE ファイル無し（取得時 404 で確認・2026-07-12 再確認） |
-| SeaweedFS | なし | 上流タグ `4.47` に NOTICE ファイル無し（2026-09-26 に上流のタグで再確認。LICENSE は 4.39 とバイト単位で同一） |
+| Keycloak | なし | 上流タグ `26.8.1` に NOTICE ファイル無し（2026-10-22 に上流のタグで再確認。LICENSE.txt は 26.6.4 とバイト単位で同一） |
+| SeaweedFS | なし | 上流タグ `4.48` に NOTICE ファイル無し（2026-10-22 に上流のタグで再確認。LICENSE は 4.39 とバイト単位で同一） |
 | TEI | なし | 上流タグ `v1.9.3` に NOTICE ファイル無し（同上） |
 | vLLM | なし | 上流タグ `v0.21.0` に NOTICE ファイル無し（同上） |
 | NsJail | なし | 固定 SHA `079d70dd…` のリポルートに NOTICE ファイル無し（GitHub contents API で確認・2026-06-02）。自前ビルドで同梱するが NOTICE 不存在のため §4(d) 義務は発生しない |

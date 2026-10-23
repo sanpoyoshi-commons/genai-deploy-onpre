@@ -82,7 +82,7 @@ restore_postgres() {
 }
 
 # tar 用 utility image。tag＋digest は docker-compose.yml の seaweedfs と同一に保つ（backup.sh と同じ値）。
-readonly SWFS_IMAGE='chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882'
+readonly SWFS_IMAGE='chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d'
 
 resolve_seaweedfs_volume() {
   local vol

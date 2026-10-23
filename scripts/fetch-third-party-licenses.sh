@@ -45,14 +45,14 @@ fetch_first() {
 
 echo "== fetching third-party LICENSE / NOTICE (verbatim) =="
 
-# --- PostgreSQL 16.14 (PostgreSQL License; 本文は COPYRIGHT) ---
+# --- PostgreSQL 16.15 (PostgreSQL License; 本文は COPYRIGHT) ---
 fetch_first "PostgreSQL_PostgreSQL-License.txt" \
-  "https://raw.githubusercontent.com/postgres/postgres/REL_16_14/COPYRIGHT" \
+  "https://raw.githubusercontent.com/postgres/postgres/REL_16_15/COPYRIGHT" \
   "https://raw.githubusercontent.com/postgres/postgres/master/COPYRIGHT"
 
-# --- pgvector 0.8.5 (PostgreSQL License) ---
+# --- pgvector 0.8.7 (PostgreSQL License) ---
 fetch_first "pgvector_PostgreSQL-License.txt" \
-  "https://raw.githubusercontent.com/pgvector/pgvector/v0.8.5/LICENSE" \
+  "https://raw.githubusercontent.com/pgvector/pgvector/v0.8.7/LICENSE" \
   "https://raw.githubusercontent.com/pgvector/pgvector/master/LICENSE"
 
 # --- pg_bigm v1.2-20250903 (PostgreSQL License; 導入予定) ---
@@ -60,23 +60,23 @@ fetch_first "pg_bigm_PostgreSQL-License.txt" \
   "https://raw.githubusercontent.com/pgbigm/pg_bigm/v1.2-20250903/LICENSE" \
   "https://raw.githubusercontent.com/pgbigm/pg_bigm/master/LICENSE"
 
-# --- Keycloak 26.6.4 (Apache-2.0) ---
+# --- Keycloak 26.8.1 (Apache-2.0) ---
 fetch_first "Keycloak_Apache-2.0.txt" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.4/LICENSE.txt" \
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.1/LICENSE.txt" \
   "https://raw.githubusercontent.com/keycloak/keycloak/main/LICENSE.txt"
 fetch_first "Keycloak-NOTICE.txt" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.4/NOTICE" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.6.4/NOTICE.txt"
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.1/NOTICE" \
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.1/NOTICE.txt"
 
-# --- SeaweedFS 4.47 (Apache-2.0) ---
-# 4.39 → 4.47 で LICENSE はバイト単位で同一（sha256 d789d433…ef613・2026-09-26 に上流のタグで確認）。
-# 上流タグに NOTICE／NOTICE.txt は存在しないため SeaweedFS-NOTICE.txt は回収されない（4.47 も同じ）。
+# --- SeaweedFS 4.48 (Apache-2.0) ---
+# 4.39 → 4.48 で LICENSE はバイト単位で同一（sha256 d789d433…ef613・2026-10-22 に上流のタグで確認）。
+# 上流タグに NOTICE／NOTICE.txt は存在しないため SeaweedFS-NOTICE.txt は回収されない（4.48 も同じ）。
 fetch_first "SeaweedFS_Apache-2.0.txt" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.47/LICENSE" \
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.48/LICENSE" \
   "https://raw.githubusercontent.com/seaweedfs/seaweedfs/master/LICENSE"
 fetch_first "SeaweedFS-NOTICE.txt" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.47/NOTICE" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.47/NOTICE.txt"
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.48/NOTICE" \
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.48/NOTICE.txt"
 
 # --- ElasticMQ v1.7.1 (Apache-2.0) ---
 # 実ファイル名は LICENSE.txt（拡張子なし LICENSE は上流に無く 404。GitHub contents API で確認・2026-06-02）。
@@ -88,9 +88,9 @@ fetch_first "ElasticMQ-NOTICE.txt" \
   "https://raw.githubusercontent.com/softwaremill/elasticmq/v1.7.1/NOTICE" \
   "https://raw.githubusercontent.com/softwaremill/elasticmq/v1.7.1/NOTICE.txt"
 
-# --- Ollama v0.31.2 (MIT) ---
+# --- Ollama v0.35.1 (MIT) ---
 fetch_first "Ollama_MIT.txt" \
-  "https://raw.githubusercontent.com/ollama/ollama/v0.31.2/LICENSE" \
+  "https://raw.githubusercontent.com/ollama/ollama/v0.35.1/LICENSE" \
   "https://raw.githubusercontent.com/ollama/ollama/main/LICENSE"
 
 # --- Text Embeddings Inference v1.9.3 (Apache-2.0) ---
@@ -101,19 +101,19 @@ fetch_first "TEI-NOTICE.txt" \
   "https://raw.githubusercontent.com/huggingface/text-embeddings-inference/v1.9.3/NOTICE" \
   "https://raw.githubusercontent.com/huggingface/text-embeddings-inference/v1.9.3/NOTICE.txt"
 
-# --- nginx 1.30.4 (BSD-2-Clause) ---
+# --- nginx 1.30.6 (BSD-2-Clause) ---
 fetch_first "nginx_BSD-2-Clause.txt" \
-  "https://raw.githubusercontent.com/nginx/nginx/release-1.30.4/LICENSE" \
+  "https://raw.githubusercontent.com/nginx/nginx/release-1.30.6/LICENSE" \
   "https://nginx.org/LICENSE"
 
-# --- Mailpit v1.30.4 (MIT) ---
+# --- Mailpit v1.31.5 (MIT) ---
 fetch_first "Mailpit_MIT.txt" \
-  "https://raw.githubusercontent.com/axllent/mailpit/v1.30.4/LICENSE" \
+  "https://raw.githubusercontent.com/axllent/mailpit/v1.31.5/LICENSE" \
   "https://raw.githubusercontent.com/axllent/mailpit/develop/LICENSE"
 
-# --- Dozzle v10.6.9 (MIT) ---
+# --- Dozzle v11.3.2 (MIT) ---
 fetch_first "Dozzle_MIT.txt" \
-  "https://raw.githubusercontent.com/amir20/dozzle/v10.6.9/LICENSE" \
+  "https://raw.githubusercontent.com/amir20/dozzle/v11.3.2/LICENSE" \
   "https://raw.githubusercontent.com/amir20/dozzle/master/LICENSE"
 
 # --- speaches 0.8.3 (MIT; profile transcribe の STT serving・faster-whisper 同梱) ---
