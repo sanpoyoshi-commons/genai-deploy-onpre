@@ -338,7 +338,7 @@ COMPOSE_PROFILES=llm,embedding,rerank,image,transcribe,queue docker compose up -
 > **答えが 3 種類あります**：①条文を引いて答える（現行）、②「まだ施行されていない」と施行日を添えて
 > 答える（施行予定）、③「該当条文が見当たりません」とだけ答える（該当なし）。③は、質問に合う法令が
 > 同梱データに無いときに、**名前の近い別の法令を根拠にしてしまわないための安全側の動作**です。
-> 取りこぼしと感じたら、法令の正式名称を質問に含めて再度お試しください。
+> 取りこぼしと感じたら、法令の正式名称をそのまま質問に書いて再度お試しください（正式名称は、③の答えが案内する e-Gov 法令検索で確かめられます）。
 > 仕組みと上流との差分は [docs/development/law-rag-retrieval.md](development/law-rag-retrieval.md)。
 
 ### ⚠ Code Interpreter（任意コード実行）を有効にする前に

@@ -4,6 +4,52 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-11-01
+
+`genai-ai-api-onpre` 側の変更です。本リポジトリを更新するときは api もあわせて更新してください（手順は下）。
+
+### Security
+
+- **body-parser を 2.3.0 → 2.4.0 へ**（[GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828) ／ CVE-2026-111181）— 圧縮した要求の本文の後ろに余分なバイトがあると、api のプロセスが落ちる不備です。本文の解析はログインの確認より前に行うため、ログインしていない要求でも届きます。2026-10-24 からは回避策（`inflate: false`）で塞いでいましたが、修正版に上げました。回避策は多層防御として残します
+- **qs を 6.16.0 → 6.16.1 へ**（[GHSA-6pq8-jhm2-2vcw](https://github.com/advisories/GHSA-6pq8-jhm2-2vcw) ／ CVE-2026-110816）— `qs.stringify` を `arrayFormat: 'comma'` で呼んだときに、捕捉されない例外が起きる不備です
+- **fast-uri を 3.1.8 → 3.1.9 へ**（[GHSA-333x-w4r6-6crp](https://github.com/advisories/GHSA-333x-w4r6-6crp) ／ [GHSA-wjr9-j795-jxcr](https://github.com/advisories/GHSA-wjr9-j795-jxcr) ／ [GHSA-xhq7-xmqj-769h](https://github.com/advisories/GHSA-xhq7-xmqj-769h) ／ [GHSA-w74x-v6f9-j3xg](https://github.com/advisories/GHSA-w74x-v6f9-j3xg)）— DB の移行（prisma）が使う依存で、api の実行用のイメージには入りません
+
+### Fixed
+
+- **法令調査で、法令の正式名称を書いて尋ねても【該当なし】になることがありました** — 問いから法令名らしい語を切り出す処理が、題名の一部（「〜に関する法律施行規則」の「法律施行規則」、「〜業務方法書」の「業務方法」など）を法令名と取り違え、手元に無い法令として扱っていたためです。問いの本文に同梱データの法令の題名がそのまま書かれていれば、その法令を特定するようにし、切り出しの規則も直しました。同梱の法令名 8,975 件をそれぞれ正式名称で尋ねる確認で、【該当なし】は 1,829 件から 0 件になりました（法令データ `law-rag-20261031`）
+- **【該当なし】の答えの末尾で、確かめ先として e-Gov 法令検索（<https://laws.e-gov.go.jp/>）を案内するようにしました** — これまでは「正式名称を含めて質問し直してください」と案内していました
+- **法令をどう決めたか（判定の結果と経路・決まった法令番号）を、【現行】の答えのときも api のログ（info）に出すようにしました** — 推定した法令名は、同梱データの法令の題名に当たったものだけを出し、当たらなかったものは件数だけを出します。問いの本文と、問いから切り出した語は出しません（これまでは【該当なし】のログに、推定した法令名をそのまま出していました）
+- **法令データの取り込み（`tools/law-rag-ingest`）が、本則に条の無い法令の本則を取り込むようになりました** — 本則が条ではなく項だけでできている法令は、本則が取り込まれていませんでした。直下の項をまとめて 1 つのチャンク（見出しは「本則」）にします。配布 dump は `law-rag-20261031` から、この取り込みで作っています（下の 2026-10-31 の節）
+
+### 更新手順（api）
+
+```bash
+git -C ../genai-ai-api-onpre pull
+docker compose up -d --build api
+docker compose exec nginx nginx -s reload  # api を作り直すと IP が変わるため
+```
+
+## 2026-10-31
+
+### Data
+
+- **法令 RAG 配布 dump 更新（[`law-rag-20261031`](https://github.com/sanpoyoshi-commons/genai-deploy-onpre/releases/tag/law-rag-20261031)）** — e-Gov 2026-10-31 取得分（法令番号 8,975 件）。前版 `law-rag-20261029` の Release notes の「既知の問題」だった、本則に条の無い法令の収録漏れを直しました（本則を収録した法令番号 1,185 件）。前版からの e-Gov のデータの更新分として、新しい法律 1 本（国家社会機能継続性確保施策及び副首都の整備に係る施策の推進に関する法律・2026-10-30 施行）と、施行日を迎えた改正 4 法令 16 条文を含みます。データ基準日は 2026-10-31。法令別の全内訳は Release notes を参照
+- この版の Release notes の「既知の問題」（法令の正式名称で尋ねても【該当なし】になることがある）は、2026-11-01 の api の修正で直りました（上の節）。dump の取り直しは要りません
+- 前版 [`law-rag-20261029`](https://github.com/sanpoyoshi-commons/genai-deploy-onpre/releases/tag/law-rag-20261029)（e-Gov 2026-10-29 取得分・法令番号 7,832 件。前々版から改正・新規 874 条文／187 法令＋廃止・削除 30,104 行／244 法令）と、前々版 [`law-rag-20261003`](https://github.com/sanpoyoshi-commons/genai-deploy-onpre/releases/tag/law-rag-20261003)（e-Gov 2026-10-03 取得分・法令番号 7,832 件。`law-rag-20260904` から改正・新規 1,299 条文／281 法令＋廃止・削除 62,267 行／383 法令）は、配布したときにこの CHANGELOG と既定 `RELEASE_TAG` を更新していませんでした。内訳は各版の Release notes を参照
+- 法令の件数の数え方：上の件数は法令番号の数です。2026-08-22・2026-09-04 の項の件数（9,537 件・9,518 件）は版の数で、数え方が違います
+- `scripts/law-rag-import.sh` と [docs/law-rag-setup.md](docs/law-rag-setup.md) の既定 `RELEASE_TAG` を `law-rag-20261031` へ更新（旧タグも `RELEASE_TAG` 環境変数で引き続き取得可能）。docs の「Releases には最新版 1 つだけを置く」という記述を、過去の版も残している実際の運用に合わせました
+- 既存環境の更新手順：`git pull` → `./scripts/law-rag-import.sh --from-release`（法令テーブルのスキーマ変更はないため migrate の再実行は不要です）
+
+## 2026-10-24
+
+`genai-ai-api-onpre` 側の変更です。本リポジトリを更新するときは api もあわせて更新してください（手順は 2026-11-01 の節）。
+
+### Security
+
+- **api が、圧縮した要求の本文（`Content-Encoding` 付き）を受け付けないようにしました** — body-parser の不備（[GHSA-27r3-jxmh-p828](https://github.com/advisories/GHSA-27r3-jxmh-p828) ／ CVE-2026-111181）に対する、勧告が示す回避策（`express.json` の `inflate: false`）です。圧縮した本文の後ろに余分なバイトがあると api のプロセスが落ちる不備で、ログインしていない要求でも届きます。画面からの利用は変わりません。body-parser は 2026-11-01 に修正版へ上げました
+- **zod を 4.4.3 → 4.6.7 へ**（[GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) ／ CVE-2023-54404）— 長さの制約の無い配列のスキーマに大きな配列を送ると、検証のエラーを溜め続けてメモリを使い切る不備です。api では、ログインした利用者の要求で届きます
+- **undici を 7.29.1 → 7.30.1 へ**（[GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685) ／ CVE-2026-109924 ／ [GHSA-f72v-6w45-q472](https://github.com/advisories/GHSA-f72v-6w45-q472) ／ CVE-2026-109841）— `EventSource` の解析と、`fetch()` の SRI（`integrity`）の不備です。api はどちらも使っていませんが、修正版にしました
+
 ## 2026-10-22
 
 ### Security
