@@ -129,7 +129,9 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "implicitFlowEnabled": false,
-      "serviceAccountsEnabled": true
+      "serviceAccountsEnabled": true,
+      "defaultClientScopes": ["acr", "basic", "email", "profile", "roles", "web-origins", "kc-admin-api"],
+      "optionalClientScopes": ["address", "microprofile-jwt", "offline_access", "organization", "phone"]
     }
   ],
   "users": [

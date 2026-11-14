@@ -4,6 +4,48 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-11-14
+
+### Security
+
+- **Keycloak を 26.8.1 → 26.8.2 へ**（CVE-2026-110932 を含む 33 件。[26.8.2 の告知](https://www.keycloak.org/2026/11/keycloak-2682-released)）— 2026-11-07 に nginx で暫定策を入れた不備（ログインしていない要求で theme 名を変えながら送ると、ディスクのキャッシュが増え続ける）を直した版です
+- **2026-11-07 の暫定策のうち、組み込みでない theme 名を nginx で 404 にする設定を外しました** — 26.8.2 で根本が直ったためです。自前の theme を足しても、nginx で止まりません。`/auth/resources/` の 1 秒あたりの上限（超えると 429）は、ログインしていない要求が届く経路の備えとして残します
+
+### Changed
+
+- **⚠️ 既存の環境では、上げた後に `./scripts/keycloak-admin-api-scope.sh` を 1 回流してください** — 26.8.2 から、Keycloak の Admin REST API は、トークンに `kc-admin-api` の scope（と、それが付ける audience）が無いと 401 を返します（CVE-2026-19688 の修正。[Upgrading Guide](https://www.keycloak.org/docs/latest/upgrading/#migration-changes)）。上げたときに Keycloak がこの scope を自動で付けるのは `admin-cli` と `security-admin-console` だけで、api が使う `genai-ai-api-admin` には付きません。流さないと、招待やチームのメンバーの追加・削除が失敗します。新しく入れる環境は、realm のテンプレートで付けてあるので要りません。スクリプトは一時の管理者を作って使い、最後に消します。何度流しても結果は同じです
+
+### 更新手順
+
+```bash
+./scripts/backup.sh full                   # 前の版へ戻すときに keycloak-db のリストアが要ることがある
+git pull
+docker compose pull
+docker compose up -d                       # keycloak が作り直される
+./scripts/keycloak-admin-api-scope.sh      # 既存の環境だけ・1 回（keycloak が healthy になるのを待ってから付ける）
+docker compose exec nginx nginx -s reload  # 新しい nginx の設定を読む
+```
+
+## 2026-11-07
+
+### Security
+
+- **Mailpit を v1.31.5 → v1.33.0 へ**（[GHSA-379p-g4f4-hq5h](https://github.com/axllent/mailpit/security/advisories/GHSA-379p-g4f4-hq5h) ほか）— 細工した画像を添付したメールで、サムネイルの生成が終わらなくなる不備（v1.32.0 で修正）と、同梱の Go と Go の依存の 4 件（[GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809)・[GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860)・[GO-2026-6865](https://pkg.go.dev/vuln/GO-2026-6865)・[GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866)）を直した版です。v1.32.0 から、HTTP・SMTP・POP3 の同時接続はそれぞれ 1000 までになります
+- **Ollama を 0.35.1 → 0.40.13 へ** — 同梱の Go と Go の依存について `govulncheck` が挙げる 88 件のうち、85 件を直した版です（2026-11-07 時点。[GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809)・[GO-2026-6865](https://pkg.go.dev/vuln/GO-2026-6865)・[GO-2026-5841](https://pkg.go.dev/vuln/GO-2026-5841)・[GO-2026-5015](https://pkg.go.dev/vuln/GO-2026-5015)・[GO-2026-5029](https://pkg.go.dev/vuln/GO-2026-5029)・[GO-2026-6629](https://pkg.go.dev/vuln/GO-2026-6629) ほか）。残る 3 件（GO-2026-5932・GO-2026-6860・GO-2026-6866）は Ollama の次の版を待ちます。0.40 より前に取得したモデルを、初めて動かすときに裏で作り直す動き（元のモデルを控えとしてディスクに残す）は [v0.40.2](https://github.com/ollama/ollama/releases/tag/v0.40.2) で入りましたが、[v0.40.3](https://github.com/ollama/ollama/releases/tag/v0.40.3) で止められています。0.40.13 で確かめた環境でも、モデルは作り直されず、ディスクの使い方も変わりませんでした。のちの版で作り直しが再開すると、控えの分だけディスクを多く使います
+- **Ollama の cloud の機能を既定で切りました**（`OLLAMA_NO_CLOUD=1`）— Ollama は、cloud のモデルを指した要求を ollama.com へ中継します。本構成は手元のモデルだけを使うため、既定で切ります。cloud のモデルへの要求は 403 になり、手元のモデルの動きは変わりません。cloud のモデルを使うときは `.env` で `OLLAMA_NO_CLOUD=0` にしてください
+- **Keycloak の theme のファイルの配信（`/auth/resources/`）を、nginx で絞りました**（[GHSA-pm5j-69hm-5c3g](https://github.com/advisories/GHSA-pm5j-69hm-5c3g) ／ CVE-2026-110932 の暫定策）— Keycloak 26.8.1 は theme 名を検証せずにディスクのキャッシュの鍵に使うため、ログインしていない要求でディスクを埋められます。組み込みでない theme 名の要求は nginx が 404 を返して Keycloak へ渡さず、残りの要求には 1 秒あたりの上限（超えると 429）を設けました。開発用に直接公開している Keycloak のポート（既定 `127.0.0.1:8088`）には効きません。`HTTP_BIND` で LAN に開いている環境では、このポートも LAN に開いています。修正版の Keycloak 26.8.2 で直る予定です
+
+### 更新手順
+
+```bash
+git pull
+docker compose pull
+docker compose up -d                       # mailpit と ollama が作り直される
+docker compose exec nginx nginx -s reload  # 新しい nginx の設定を読む
+```
+
+- `COMPOSE_PROFILES` を `.env` に書かずにコマンドの前に付けて起動している場合は、`pull`・`up` にも同じ値を付けてください（`ollama` は `llm` のプロファイルです）
+
 ## 2026-11-01
 
 `genai-ai-api-onpre` 側の変更です。本リポジトリを更新するときは api もあわせて更新してください（手順は下）。

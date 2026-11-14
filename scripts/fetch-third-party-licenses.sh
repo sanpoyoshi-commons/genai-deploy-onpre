@@ -60,13 +60,13 @@ fetch_first "pg_bigm_PostgreSQL-License.txt" \
   "https://raw.githubusercontent.com/pgbigm/pg_bigm/v1.2-20250903/LICENSE" \
   "https://raw.githubusercontent.com/pgbigm/pg_bigm/master/LICENSE"
 
-# --- Keycloak 26.8.1 (Apache-2.0) ---
+# --- Keycloak 26.8.2 (Apache-2.0) ---
 fetch_first "Keycloak_Apache-2.0.txt" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.1/LICENSE.txt" \
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/LICENSE.txt" \
   "https://raw.githubusercontent.com/keycloak/keycloak/main/LICENSE.txt"
 fetch_first "Keycloak-NOTICE.txt" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.1/NOTICE" \
-  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.1/NOTICE.txt"
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/NOTICE" \
+  "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/NOTICE.txt"
 
 # --- SeaweedFS 4.48 (Apache-2.0) ---
 # 4.39 → 4.48 で LICENSE はバイト単位で同一（sha256 d789d433…ef613・2026-10-22 に上流のタグで確認）。
@@ -88,9 +88,9 @@ fetch_first "ElasticMQ-NOTICE.txt" \
   "https://raw.githubusercontent.com/softwaremill/elasticmq/v1.7.1/NOTICE" \
   "https://raw.githubusercontent.com/softwaremill/elasticmq/v1.7.1/NOTICE.txt"
 
-# --- Ollama v0.35.1 (MIT) ---
+# --- Ollama v0.40.13 (MIT) ---
 fetch_first "Ollama_MIT.txt" \
-  "https://raw.githubusercontent.com/ollama/ollama/v0.35.1/LICENSE" \
+  "https://raw.githubusercontent.com/ollama/ollama/v0.40.13/LICENSE" \
   "https://raw.githubusercontent.com/ollama/ollama/main/LICENSE"
 
 # --- Text Embeddings Inference v1.9.3 (Apache-2.0) ---
@@ -106,9 +106,9 @@ fetch_first "nginx_BSD-2-Clause.txt" \
   "https://raw.githubusercontent.com/nginx/nginx/release-1.30.6/LICENSE" \
   "https://nginx.org/LICENSE"
 
-# --- Mailpit v1.31.5 (MIT) ---
+# --- Mailpit v1.33.0 (MIT) ---
 fetch_first "Mailpit_MIT.txt" \
-  "https://raw.githubusercontent.com/axllent/mailpit/v1.31.5/LICENSE" \
+  "https://raw.githubusercontent.com/axllent/mailpit/v1.33.0/LICENSE" \
   "https://raw.githubusercontent.com/axllent/mailpit/develop/LICENSE"
 
 # --- Dozzle v11.3.2 (MIT) ---

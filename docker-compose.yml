@@ -97,7 +97,7 @@ services:
   # 認証・IdP（Cognito 代替）。
   # nginx 前段 + 内部 HTTP の公式サポート構成。
   keycloak:
-    image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+    image: quay.io/keycloak/keycloak:26.8.2@sha256:c68e286cacd87b942ac1939a0a1481461109d6acd3a57dc496969a319a76bbf0
     command: ['start', '--optimized=false', '--http-enabled=true', '--hostname-strict=false', '--proxy-headers=xforwarded', '--health-enabled=true', '--import-realm']
     environment:
       KC_DB: postgres
@@ -637,7 +637,7 @@ services:
 
   # 開発用 SMTP（SES 代替）。Keycloak からのメールを受信。本番は外部 SMTP へ切替。
   mailpit:
-    image: axllent/mailpit:v1.31.5@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
+    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: '1'
       MP_SMTP_AUTH_ALLOW_INSECURE: '1'
@@ -692,7 +692,7 @@ services:
   # embedding では Gemma を除外（tei + ruri-v3、整合は README 参照）。
   # Apache-2.0 代替は Mistral 系等。Gemma 利用は Prohibited Use Policy 遵守が条件。
   ollama:
-    image: ollama/ollama:0.35.1@sha256:292ee7945dfc3d5840a181f3ab86fedb1e66703e02c8af98b50f4da56b7e278c
+    image: ollama/ollama:0.40.13@sha256:b2f0122c476bc9fe7ce679d8bb4bd555351e25e2554eefb156f61cb0a89cf429
     profiles: ['llm']
     environment:
       # 既定 context 長（トークン）。**既定 8192**（ollama 自身の既定は 4096）。理由は 2 つ：
@@ -707,6 +707,9 @@ services:
       # ＋既定 gemma の二重常駐で 11GB 機が OOM/スワップ枯渇）。1 にすると新モデルのロード時に旧モデルを
       # 自動アンロードして衝突を防ぐ。RAM に余裕がある環境（16GB+）では .env で 2 以上に上げてよい。
       OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+      # ollama.com の cloud の機能（遠隔の推論・web 検索）を切る。本構成は手元のモデルだけを使う。
+      # cloud のモデルを使いたいときだけ .env で 0 にする。
+      OLLAMA_NO_CLOUD: ${OLLAMA_NO_CLOUD:-1}
     volumes:
       - ollama_models:/root/.ollama
     networks:
