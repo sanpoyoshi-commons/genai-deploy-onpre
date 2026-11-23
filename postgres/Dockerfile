@@ -9,7 +9,7 @@
 # ============================================================================
 
 # ベースイメージは digest 固定（pgvector 0.8.7 / PostgreSQL 16）。
-ARG PGVECTOR_IMAGE=pgvector/pgvector:0.8.7-pg16@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
+ARG PGVECTOR_IMAGE=pgvector/pgvector:0.8.7-pg16@sha256:484e838076e04939d27d3e176e91c86eea96236126023be8d3059761122e579f
 FROM ${PGVECTOR_IMAGE}
 
 # --- セキュリティスキャン抑制（根拠付き・監査可能）---

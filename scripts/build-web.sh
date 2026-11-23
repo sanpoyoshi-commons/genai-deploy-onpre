@@ -7,7 +7,7 @@
 #
 # ビルドは **Docker コンテナ内（node 固定版）** で行う。理由：
 #   - ホストに node/mise が無くても動く（Docker は本スタックの前提なので確実に在る）。
-#   - genai-web-onpre の engines/mise が要求する node 22.22.2 を確実に使える。
+#   - genai-web-onpre の engines/mise が要求する node 22.23.5 を確実に使える。
 #   - WSL では素の `npm` が Windows 版 node を掴み UNC パスでビルド不能になる罠を回避する。
 #
 # onpre 用の VITE 焼き込み値は localhost トポロジ固定・非秘密のため既定値を埋め込む。
@@ -29,9 +29,9 @@ WEB_SRC="${WEB_SRC:-$REPO_ROOT/../genai-web-onpre}"
 WEB_DIST="$WEB_SRC/packages/web/dist"
 WEB_OUT="$REPO_ROOT/web"
 
-# ビルド用 node イメージ（genai-web-onpre の mise.toml/engines = node 22.22.2 に一致）。
+# ビルド用 node イメージ（genai-web-onpre の mise.toml/engines = node 22.23.5 に一致）。
 # 必要なら digest 固定推奨（docker-compose の OSS 固定運用と同様）。
-NODE_IMAGE="${NODE_IMAGE:-node:22.22.2-slim}"
+NODE_IMAGE="${NODE_IMAGE:-node:22.23.5-slim}"
 
 # onpre 既定の VITE 焼き込み値（localhost 経由・非秘密。環境変数で上書き可）
 API_ENDPOINT="${API_ENDPOINT:-/api}"                       # nginx 同一オリジン（相対）

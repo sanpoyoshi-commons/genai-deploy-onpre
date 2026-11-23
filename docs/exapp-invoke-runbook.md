@@ -55,7 +55,7 @@ docker compose logs -f worker     # worker_started・exapp ログ確認
 echo-exapp の内部到達確認（任意）：
 
 ```bash
-docker run --rm --network genai-deploy-onpre_genai_internal node:24.15.0-alpine \
+docker run --rm --network genai-deploy-onpre_genai_internal node:24.22.3-alpine \
   node -e "fetch('http://echo-exapp:3000/health').then(r=>r.json()).then(console.log)"
 # 期待: { ok: true }
 ```

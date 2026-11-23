@@ -4,6 +4,56 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-11-23
+
+`genai-ai-api-onpre` と `genai-web-onpre` の変更も含みます。本リポジトリを更新するときは、api と web もあわせて更新してください（手順は下）。
+
+### Security
+
+- **PostgreSQL を 16.15 → 16.16 へ**（CVE-2026-116314 を含む 43 件。[16.16 のリリースノート](https://www.postgresql.org/docs/release/16.16/)）— keycloak-db の `postgres:16.16-alpine` と、業務 DB のベースの `pgvector/pgvector:0.8.7-pg16`（同梱の PostgreSQL が 16.16 のもの）の両方です。16.16 には、索引が壊れることのある不備の直しが含まれ、リリースノートは当てはまる索引の作り直し（`REINDEX`）を求めています。本構成で当てはまるのは、業務 DB の GIN 索引 2 本です（bpchar の列の btree と `gist_trgm_ops` の索引はありません）。更新手順の最後で作り直してください
+- **SeaweedFS を 4.48 → 4.54 へ**（CVE-2026-128085・CVE-2026-128086 ほか、同梱の Go の依存の修正）— 4.50 から `s3.allowDeleteBucketNotEmpty` の既定が false になり、中身の残っているバケットは削除できなくなります
+- **Dozzle を v11.3.2 → v11.4.3 へ**（[GO-2026-6888](https://pkg.go.dev/vuln/GO-2026-6888)・[GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809)）
+- **nginx の 443 と 8443 で、HTTP/2 を一時的に切りました**（CVE-2026-123007 の暫定策。[nginx security advisories](https://nginx.org/en/security_advisories.html)）— nginx 1.30.7 で直る、HTTP/2 のメモリ破壊の不備への備えです。ブラウザは HTTP/1.1 でつながり、画面の動きは変わりません。nginx 1.30.7 へ上げるときに HTTP/2 を戻します。同じ 1.30.7 で直る CVE-2026-118899（TLS 1.3）は、この暫定策では塞がりません
+- **api（`genai-ai-api-onpre`）**
+  - **Node.js を 24.15.0 → 24.22.3 へ**（api のイメージ。2026-11-11 の Node.js のセキュリティリリースほか）
+  - **`@aws-sdk/xml-builder` を 3.972.43 へ** — fast-xml-parser（[GHSA-474x-hrwr-fgx4](https://github.com/advisories/GHSA-474x-hrwr-fgx4) ／ CVE-2026-126066 ほか）と fast-xml-builder が依存から外れました
+  - **effect を 3.22.1 へ**（[GHSA-7589-6fvf-x4pw](https://github.com/advisories/GHSA-7589-6fvf-x4pw) ／ CVE-2026-121707）— DB の移行（prisma）が使う依存です
+  - **undici を 7.30.1 → 7.30.2 へ**（2026-11-05 の 6 件）
+- **web（`genai-web-onpre`）**
+  - **ビルドに使う Node.js を 22.22.2 → 22.23.5 へ**（`scripts/build-web.sh` のイメージも `node:22.23.5-slim` にしました）
+  - **vite を 8.0.16 → 8.1.7 へ**（[GHSA-p4f5-76q4-ffq7](https://github.com/advisories/GHSA-p4f5-76q4-ffq7) ほか）— 開発サーバの不備で、配布するビルドには入りません。あわせて、開発用の vitest を 4.1.12、undici を 7.30.2、zod を 4.6.7 に上げました
+
+### Fixed
+
+- **法令調査の出典の見出しに、条の名を出すようにしました** — これまでは法令の題名（と見出しや本文の冒頭）だけで、どの条の出典か分かりませんでした。答えを作るときにモデルへ渡す見出しは前のままです
+- **「改正民法の施行日は」のように、題名の直前に「改正」があっても法令を特定するようにしました** — 題名の直前に漢字やカタカナが続く所では当てない決まりのため、【該当なし】になっていました。「移民法」の中の「民法」のように、別の語の一部は引き続き当てません
+- **問いに書かれた題名で法令が決まったときは、推定した法令名とのずれの注意を出さないようにしました**
+- **答えが参考情報の番号ではなく条の番号（[33条]・[第33条]・[12条の2]）で引用したときも、出典に結び付けるようにしました** — 当てはまる参考情報がちょうど 1 つのときだけ、番号の引用に書き換えます
+
+### Changed
+
+- **`docs/law-rag-setup.md` の方法 B に、2026-11-01 より前の api で作った DB には、本則に条の無い法令の本則が入っていないことと、その直し方を書きました**。`docs/development/law-rag-retrieval.md` の名乗りの判定に、「改正」の例外を書きました
+- 同梱のライセンス文（`LICENSES-THIRD-PARTY/Node.js_MIT.txt`）を Node.js v24.22.3 のものにしました（同梱の zlib の版と年の行のほかは、字下げだけが変わります）
+
+### 更新手順
+
+```bash
+./scripts/backup.sh full                   # 前の版へ戻すときのため
+git pull
+git -C ../genai-ai-api-onpre pull
+git -C ../genai-web-onpre pull
+./scripts/build-web.sh                     # web を Node.js 22.23.5 でビルドし直す
+docker compose pull
+docker compose build                       # api と業務 DB（postgres）のイメージを作り直す
+docker compose up -d
+docker compose exec nginx nginx -s reload  # api を作り直すと IP が変わるため
+# 業務 DB の GIN 索引 2 本を作り直す（PostgreSQL 16.16 のリリースノートによる）
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "REINDEX INDEX CONCURRENTLY rag_chunks_chunk_text_bigm_idx" -c "REINDEX INDEX CONCURRENTLY app_laws_for_indexing_content_bigm_idx"'
+```
+
+- `COMPOSE_PROFILES` を `.env` に書かずにコマンドの前に付けて起動している場合は、`pull`・`build`・`up` にも同じ値を付けてください
+- 法令データを取り込んでいない環境では、`app_laws_for_indexing_content_bigm_idx` は空の索引です。作り直しはすぐ終わります
+
 ## 2026-11-14
 
 ### Security

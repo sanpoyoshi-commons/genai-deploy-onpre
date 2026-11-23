@@ -22,19 +22,19 @@
 
 | OSS | バージョン | イメージ@digest | SPDX | 保全ファイル | 回収元タグ |
 |---|---|---|---|---|---|
-| PostgreSQL | 16.15 | `postgres:16.15-alpine@sha256:721873c3…6080ea`（keycloak-db）/ pgvector 同梱（業務 DB） | PostgreSQL | [`PostgreSQL_PostgreSQL-License.txt`](./PostgreSQL_PostgreSQL-License.txt) | `REL_16_15`（COPYRIGHT） |
-| pgvector | 0.8.7 | `pgvector/pgvector:0.8.7-pg16@sha256:7b822b0a…99b90a` | PostgreSQL | [`pgvector_PostgreSQL-License.txt`](./pgvector_PostgreSQL-License.txt) | `v0.8.7` |
+| PostgreSQL | 16.16 | `postgres:16.16-alpine@sha256:f2f98726…8afb6d`（keycloak-db）/ pgvector 同梱（業務 DB） | PostgreSQL | [`PostgreSQL_PostgreSQL-License.txt`](./PostgreSQL_PostgreSQL-License.txt) | `REL_16_16`（COPYRIGHT） |
+| pgvector | 0.8.7 | `pgvector/pgvector:0.8.7-pg16@sha256:484e8380…2e579f` | PostgreSQL | [`pgvector_PostgreSQL-License.txt`](./pgvector_PostgreSQL-License.txt) | `v0.8.7` |
 | pg_bigm | v1.2-20250903 | postgres カスタムビルドで導入（`postgres/Dockerfile` でソースビルド） | PostgreSQL | [`pg_bigm_PostgreSQL-License.txt`](./pg_bigm_PostgreSQL-License.txt) | `v1.2-20250903` |
 | Keycloak | 26.8.2 | `quay.io/keycloak/keycloak:26.8.2@sha256:c68e286c…76bbf0` | Apache-2.0 | [`Keycloak_Apache-2.0.txt`](./Keycloak_Apache-2.0.txt) | `26.8.2` |
-| SeaweedFS | 4.48 | `chrislusf/seaweedfs:4.48@sha256:4e61d15f…d7872d` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.48` |
+| SeaweedFS | 4.54 | `chrislusf/seaweedfs:4.54@sha256:4b42c212…222d15` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.54` |
 | ElasticMQ | v1.7.1 | `softwaremill/elasticmq:1.7.1@sha256:f1de391a…69da82` | Apache-2.0 | [`ElasticMQ_Apache-2.0.txt`](./ElasticMQ_Apache-2.0.txt) / [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) | `v1.7.1`（`LICENSE.txt`＋NOTICE） |
 | Ollama | v0.40.13 | `ollama/ollama:0.40.13@sha256:b2f0122c…9cf429` | MIT | [`Ollama_MIT.txt`](./Ollama_MIT.txt) | `v0.40.13` |
 | Text Embeddings Inference (TEI) | v1.9.3 (cpu) | `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30…1fea07` | Apache-2.0 | [`TEI_Apache-2.0.txt`](./TEI_Apache-2.0.txt) | `v1.9.3` |
 | nginx | 1.30.6 stable | `nginx:1.30.6-alpine3.24@sha256:97036422…cfb3b5` | BSD-2-Clause | [`nginx_BSD-2-Clause.txt`](./nginx_BSD-2-Clause.txt) | `release-1.30.6` |
 | Mailpit | v1.33.0 | `axllent/mailpit:v1.33.0@sha256:9b3a463b…fd5231` | MIT | [`Mailpit_MIT.txt`](./Mailpit_MIT.txt) | `v1.33.0` |
-| Dozzle | v11.3.2 | `amir20/dozzle:v11.3.2@sha256:0d8cf970…da5f6c` | MIT | [`Dozzle_MIT.txt`](./Dozzle_MIT.txt) | `v11.3.2` |
+| Dozzle | v11.4.3 | `amir20/dozzle:v11.4.3@sha256:244f218c…7deeb8` | MIT | [`Dozzle_MIT.txt`](./Dozzle_MIT.txt) | `v11.4.3` |
 | speaches | 0.8.3 (cpu) | `ghcr.io/speaches-ai/speaches:0.8.3-cpu@sha256:21e3df06…f53ef8` | MIT | [`speaches_MIT.txt`](./speaches_MIT.txt) | `v0.8.3` |
-| Node.js | v24.15.0 LTS | （api リポ自前ビルドのベースイメージ `node:24.15.0-alpine`） | Node.js（MIT 系） | [`Node.js_MIT.txt`](./Node.js_MIT.txt) | `v24.15.0` |
+| Node.js | v24.22.3 LTS | （api リポ自前ビルドのベースイメージ `node:24.22.3-alpine`） | Node.js（MIT 系） | [`Node.js_MIT.txt`](./Node.js_MIT.txt) | `v24.22.3` |
 
 > **注（2026-07-06）**：2026-06-20 の CVE 対応でイメージタグ・digest を再 pin し（上表の
 > バージョン・digest 列に反映済み）、`scripts/fetch-third-party-licenses.sh` を新タグへ更新して
@@ -95,7 +95,7 @@ Apache-2.0 §4(d) の NOTICE 同梱義務は、本来「Work または Derivativ
 |---|---|---|
 | ElasticMQ | あり | [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) 逐語保全 |
 | Keycloak | なし | 上流タグ `26.8.2` に NOTICE ファイル無し（2026-11-14 に上流のタグで再確認。LICENSE.txt は 26.6.4 とバイト単位で同一） |
-| SeaweedFS | なし | 上流タグ `4.48` に NOTICE ファイル無し（2026-10-22 に上流のタグで再確認。LICENSE は 4.39 とバイト単位で同一） |
+| SeaweedFS | なし | 上流タグ `4.54` に NOTICE ファイル無し（2026-11-23 に上流のタグで再確認。LICENSE は 4.39 とバイト単位で同一） |
 | TEI | なし | 上流タグ `v1.9.3` に NOTICE ファイル無し（同上） |
 | vLLM | なし | 上流タグ `v0.21.0` に NOTICE ファイル無し（同上） |
 | NsJail | なし | 固定 SHA `079d70dd…` のリポルートに NOTICE ファイル無し（GitHub contents API で確認・2026-06-02）。自前ビルドで同梱するが NOTICE 不存在のため §4(d) 義務は発生しない |

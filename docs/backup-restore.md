@@ -220,9 +220,9 @@ version 17, which is not compatible with this version 16`）。**この経路を
 Docker Hub からの削除に備える）。
 
 ```bash
-# 例：postgres 16.15 のイメージを tar に export しておく
-docker save -o /var/backups/genai/postgres-pg16.15.tar \
-  postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+# 例：postgres 16.16 のイメージを tar に export しておく
+docker save -o /var/backups/genai/postgres-pg16.16.tar \
+  postgres:16.16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
 
 # 業務 DB のカスタムイメージ（pgvector + pg_bigm）も同様に退避できる
 docker save -o /var/backups/genai/genai-postgres-pg16.tar \

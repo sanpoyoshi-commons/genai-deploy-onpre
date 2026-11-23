@@ -45,9 +45,9 @@ fetch_first() {
 
 echo "== fetching third-party LICENSE / NOTICE (verbatim) =="
 
-# --- PostgreSQL 16.15 (PostgreSQL License; 本文は COPYRIGHT) ---
+# --- PostgreSQL 16.16 (PostgreSQL License; 本文は COPYRIGHT) ---
 fetch_first "PostgreSQL_PostgreSQL-License.txt" \
-  "https://raw.githubusercontent.com/postgres/postgres/REL_16_15/COPYRIGHT" \
+  "https://raw.githubusercontent.com/postgres/postgres/REL_16_16/COPYRIGHT" \
   "https://raw.githubusercontent.com/postgres/postgres/master/COPYRIGHT"
 
 # --- pgvector 0.8.7 (PostgreSQL License) ---
@@ -68,15 +68,15 @@ fetch_first "Keycloak-NOTICE.txt" \
   "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/NOTICE" \
   "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/NOTICE.txt"
 
-# --- SeaweedFS 4.48 (Apache-2.0) ---
-# 4.39 → 4.48 で LICENSE はバイト単位で同一（sha256 d789d433…ef613・2026-10-22 に上流のタグで確認）。
-# 上流タグに NOTICE／NOTICE.txt は存在しないため SeaweedFS-NOTICE.txt は回収されない（4.48 も同じ）。
+# --- SeaweedFS 4.54 (Apache-2.0) ---
+# 4.39 → 4.54 で LICENSE はバイト単位で同一（sha256 d789d433…ef613・2026-11-23 に上流のタグで確認）。
+# 上流タグに NOTICE／NOTICE.txt は存在しないため SeaweedFS-NOTICE.txt は回収されない（4.54 も同じ）。
 fetch_first "SeaweedFS_Apache-2.0.txt" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.48/LICENSE" \
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.54/LICENSE" \
   "https://raw.githubusercontent.com/seaweedfs/seaweedfs/master/LICENSE"
 fetch_first "SeaweedFS-NOTICE.txt" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.48/NOTICE" \
-  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.48/NOTICE.txt"
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.54/NOTICE" \
+  "https://raw.githubusercontent.com/seaweedfs/seaweedfs/4.54/NOTICE.txt"
 
 # --- ElasticMQ v1.7.1 (Apache-2.0) ---
 # 実ファイル名は LICENSE.txt（拡張子なし LICENSE は上流に無く 404。GitHub contents API で確認・2026-06-02）。
@@ -111,9 +111,9 @@ fetch_first "Mailpit_MIT.txt" \
   "https://raw.githubusercontent.com/axllent/mailpit/v1.33.0/LICENSE" \
   "https://raw.githubusercontent.com/axllent/mailpit/develop/LICENSE"
 
-# --- Dozzle v11.3.2 (MIT) ---
+# --- Dozzle v11.4.3 (MIT) ---
 fetch_first "Dozzle_MIT.txt" \
-  "https://raw.githubusercontent.com/amir20/dozzle/v11.3.2/LICENSE" \
+  "https://raw.githubusercontent.com/amir20/dozzle/v11.4.3/LICENSE" \
   "https://raw.githubusercontent.com/amir20/dozzle/master/LICENSE"
 
 # --- speaches 0.8.3 (MIT; profile transcribe の STT serving・faster-whisper 同梱) ---
@@ -122,9 +122,9 @@ fetch_first "speaches_MIT.txt" \
   "https://raw.githubusercontent.com/speaches-ai/speaches/v0.8.3/LICENSE" \
   "https://raw.githubusercontent.com/speaches-ai/speaches/master/LICENSE"
 
-# --- Node.js v24.15.0 (MIT 系; api ベースイメージ) ---
+# --- Node.js v24.22.3 (MIT 系; api ベースイメージ) ---
 fetch_first "Node.js_MIT.txt" \
-  "https://raw.githubusercontent.com/nodejs/node/v24.15.0/LICENSE" \
+  "https://raw.githubusercontent.com/nodejs/node/v24.22.3/LICENSE" \
   "https://raw.githubusercontent.com/nodejs/node/main/LICENSE"
 
 # --- vLLM v0.21.0 (Apache-2.0; 既定構成外・任意) ---

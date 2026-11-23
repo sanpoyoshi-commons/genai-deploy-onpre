@@ -75,7 +75,7 @@ services:
 
   # Keycloak 専用 DB（公式推奨の分離）。
   keycloak-db:
-    image: postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: postgres:16.16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -136,7 +136,7 @@ services:
 
   # オブジェクトストレージ（S3 互換、MinIO 代替）。at-rest 暗号化 ON。
   seaweedfs:
-    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    image: chrislusf/seaweedfs:4.54@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15
     # -s3.config で S3 認証を有効化。creds の実体は gen-secrets.sh がテンプレ
     # （seaweedfs/s3.config.template.json）から secrets/s3.config.json として生成し本サービスに mount する
     # （秘密値の git 焼付回避）。本番は creds をローテーションして上書き。
@@ -176,7 +176,7 @@ services:
   # seaweedfs image を流用（追加 image 不要）。バケット名は api の *_BUCKET_NAME と一致させる。
   # 既存環境でも `docker compose up -d` で init が再実行され、足りないバケットだけが足される。
   seaweedfs-init:
-    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    image: chrislusf/seaweedfs:4.54@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15
     depends_on:
       seaweedfs:
         condition: service_healthy
@@ -658,7 +658,7 @@ services:
   # ログ閲覧 UI（CloudWatch 代替）。
   # セキュリティ必須セット：localhost バインド + simple 認証 + docker.sock:ro + actions/shell 無効 + NO_ANALYTICS。
   dozzle:
-    image: amir20/dozzle:v11.3.2@sha256:0d8cf9702f422d65a7e8ad238785dc6b05b2b9c43c945f6bbdf3358ad5da5f6c
+    image: amir20/dozzle:v11.4.3@sha256:244f218c876d6ed766277e71a537f34bfb2c01829e1927737e3673a8327deeb8
     environment:
       DOZZLE_NO_ANALYTICS: 'true'
       DOZZLE_ENABLE_ACTIONS: 'false'
@@ -669,7 +669,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # simple 認証ユーザー定義。実ファイルは dozzle/users.yml（手動生成・.gitignore）。
-      # 生成：docker run --rm amir20/dozzle:v11.3.2 generate <user> --password <pw> --name <name> > dozzle/users.yml
+      # 生成：docker run --rm amir20/dozzle:v11.4.3 generate <user> --password <pw> --name <name> > dozzle/users.yml
       - ./dozzle/users.yml:/data/users.yml:ro
     ports:
       - '${HTTP_BIND:-127.0.0.1}:${DOZZLE_PORT:-9980}:8080'
@@ -921,7 +921,7 @@ services:
   #   EXAPP_ALLOW_PRIVATE_ENDPOINTS=true / EXAPP_ENDPOINT_ALLOWLIST=echo-exapp
   # 起動：docker compose --profile queue --profile example up -d
   echo-exapp:
-    image: node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd
+    image: node:24.22.3-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5
     profiles: ['example']
     command: ['node', '/app/server.mjs']
     working_dir: /app

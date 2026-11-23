@@ -82,7 +82,7 @@ backup_logical_postgres() {
 # SeaweedFS image を tar 用 utility としても流用（追加 OSS ゼロ＝0-14a 整合）。
 # entrypoint は weed のため /bin/sh で上書き。tag＋digest は docker-compose.yml の seaweedfs と
 # 同一に保つ（版を上げるときは compose・backup.sh・restore.sh の 3 か所を同時に直す）。
-readonly SWFS_IMAGE='chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d'
+readonly SWFS_IMAGE='chrislusf/seaweedfs:4.54@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15'
 
 resolve_seaweedfs_volume() {
   local vol
