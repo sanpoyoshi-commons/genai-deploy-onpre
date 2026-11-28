@@ -97,7 +97,7 @@ services:
   # 認証・IdP（Cognito 代替）。
   # nginx 前段 + 内部 HTTP の公式サポート構成。
   keycloak:
-    image: quay.io/keycloak/keycloak:26.8.2@sha256:c68e286cacd87b942ac1939a0a1481461109d6acd3a57dc496969a319a76bbf0
+    image: quay.io/keycloak/keycloak:26.8.2-3@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3
     command: ['start', '--optimized=false', '--http-enabled=true', '--hostname-strict=false', '--proxy-headers=xforwarded', '--health-enabled=true', '--import-realm']
     environment:
       KC_DB: postgres
@@ -110,6 +110,8 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-}
       # nginx 経由の到達ホスト名。issuer は KC_HOSTNAME 連動（https://localhost/auth/realms/genai-realm）。
       KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-https://localhost/auth}
+      # CVE-2026-114938（OpenJDK の AVX-512 版 Base64 intrinsic）の暫定策。JDK 21.0.13.1 同梱の 26.8.2-3 以降でも残してよい。
+      JAVA_OPTS_APPEND: '-XX:-UseBASE64Intrinsics'
     ports:
       # dev 用：管理コンソールを localhost のみに公開（LAN 非公開）。本番は nginx 経由。
       - '${HTTP_BIND:-127.0.0.1}:${KEYCLOAK_HTTP_PORT:-8088}:8080'
@@ -554,7 +556,7 @@ services:
 
   # リバースプロキシ + TLS termination + 静的配信。唯一の外部公開層。
   nginx:
-    image: nginx:1.30.6-alpine3.24@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
+    image: nginx:1.30.7-alpine3.24@sha256:caf4e1e032a20f9c3c5e28fc7f25ffd768ad8677b4975c54193075997b3a97e3
     environment:
       # 実行時モデルメニュー（on-premise 可変化）。api サービスと同一の .env 値を共有し、
       # entrypoint の envsubst で /config.js を生成＝web セレクタと api 許可リストの単一の真実。
@@ -943,7 +945,7 @@ services:
   # named volume /data は root 所有を継承するため、起動前に 999 へ chown する。
   # 既存スタックの nginx alpine を流用（新規 OSS を増やさない。BSD-2-Clause、LICENSES 計上済）。
   elasticmq-init:
-    image: nginx:1.30.6-alpine3.24@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
+    image: nginx:1.30.7-alpine3.24@sha256:caf4e1e032a20f9c3c5e28fc7f25ffd768ad8677b4975c54193075997b3a97e3
     profiles: ['queue']
     user: "0:0"
     entrypoint: ['/bin/sh', '-c']

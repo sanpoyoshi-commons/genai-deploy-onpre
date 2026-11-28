@@ -4,6 +4,33 @@
 （同梱 OSS イメージの実バージョンは `docker-compose.yml` が単一の真実）。
 既存環境への反映手順は [docs/operations.md「更新（最新コードに追従する）」](docs/operations.md#更新最新コードに追従する) を参照してください。
 
+## 2026-11-28
+
+### Security
+
+- **Keycloak を 26.8.2 → 26.8.2-3 へ**（CVE-2026-114938・通称 Java4Shell。[Keycloak の告知](https://www.keycloak.org/2026/11/java4shell-vulnerability-cve-2026-114938)）— 同梱の OpenJDK を 21.0.13 から 21.0.13.1 にした再ビルド版です。AVX-512 VBMI を持つ x86-64 の CPU で、認証の前に Keycloak が Base64 をデコードする値から、OpenJDK のメモリの外へ書き込める不備です。あわせて、Keycloak が勧める暫定策 `JAVA_OPTS_APPEND: '-XX:-UseBASE64Intrinsics'` を keycloak に入れました（26.8.2-3 以降でも残してよい設定です）
+- **nginx を 1.30.6 → 1.30.7 へ**（CVE-2026-123007・CVE-2026-118899 ほか、2026-11-18 の 9 件。[nginx security advisories](https://nginx.org/en/security_advisories.html)）— nginx と、ElasticMQ の初期化（elasticmq-init）の両方のイメージです。1.30.7 も範囲に入る CVE-2026-132779 は `ssl_early_data` を有効にしたときの不備で、本構成はこの設定を使っていません
+
+### Fixed
+
+- **初期設定（`scripts/gen-secrets.sh`）が Dozzle のログインのユーザーを作るときに使うイメージを、`docker-compose.yml` の Dozzle と同じ v11.4.3 にしました** — これまでは古い v10.5.3 を取得して使っていました。`docs/operations.md` の手順の例も同じ版にしました
+
+### Changed
+
+- **nginx の HTTP/2 は、1.30.7 でも当面 off のままにしました** — 2026-11-23 の節では「nginx 1.30.7 へ上げるときに HTTP/2 を戻す」と書きましたが、戻すのは別の変更で行います。ブラウザは HTTP/1.1 でつながり、画面の動きは変わりません
+
+### 更新手順
+
+```bash
+./scripts/backup.sh full   # 前の版へ戻すときのため
+git pull
+docker compose pull
+docker compose up -d       # keycloak・nginx・elasticmq-init が作り直されます
+```
+
+- api はコメントと開発用の設定（`mise.toml`）だけが変わり、web は変わりません。どちらもビルドし直す必要はありません
+- `COMPOSE_PROFILES` を `.env` に書かずにコマンドの前に付けて起動している場合は、`pull`・`up` にも同じ値を付けてください（elasticmq-init は `queue` の profile です）
+
 ## 2026-11-23
 
 `genai-ai-api-onpre` と `genai-web-onpre` の変更も含みます。本リポジトリを更新するときは、api と web もあわせて更新してください（手順は下）。

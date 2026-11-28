@@ -179,7 +179,7 @@ docker compose -f docker-compose.yml -f docker-compose.secrets.yml ps
 2. **事前**：新バージョンの image を確保（`docker pull` または build）。**旧バージョンの image はローカルに残す**
    （Docker タグ＋digest 固定＝再取得可能。重要版は `docker save` でも退避）
 3. 新バージョンへ compose を更新（PostgreSQL 業務 DB はカスタムイメージのため、`postgres/Dockerfile` の
-   ベース（`pgvector/pgvector:0.8.2-pgXX`）と `postgresql-server-dev-XX` を新版へ変えて `docker compose build postgres`。
+   ベース（`pgvector/pgvector:0.8.7-pgXX`）と `postgresql-server-dev-XX` を新版へ変えて `docker compose build postgres`。
    keycloak-db / Keycloak は image タグ＋digest を差し替え）
 4. `down -v` → 新バージョンで `up -d`（新 `initdb` で空起動）→ `restore.sh full <アップグレード前 dump>` で復元
 5. アプリ動作確認。問題があれば下記の切戻しへ

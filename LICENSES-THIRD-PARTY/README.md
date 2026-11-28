@@ -18,19 +18,19 @@
 - `<OSS>_<SPDX>.txt` — 上流の LICENSE 本文（逐語）
 - `<OSS>-NOTICE.txt` — 上流の NOTICE 本文（逐語、配布している OSS のみ）
 
-## 同梱 OSS 一覧（digest は 2026-05-25 一次取得、2026-06-20 の CVE 対応再 pin を 2026-07-06 反映、2026-07-12 定期棚卸し再 pin を反映）
+## 同梱 OSS 一覧（digest は 2026-05-25 一次取得。以後の再 pin を反映済みで、最新は 2026-11-28 の Keycloak 26.8.2-3・nginx 1.30.7）
 
 | OSS | バージョン | イメージ@digest | SPDX | 保全ファイル | 回収元タグ |
 |---|---|---|---|---|---|
 | PostgreSQL | 16.16 | `postgres:16.16-alpine@sha256:f2f98726…8afb6d`（keycloak-db）/ pgvector 同梱（業務 DB） | PostgreSQL | [`PostgreSQL_PostgreSQL-License.txt`](./PostgreSQL_PostgreSQL-License.txt) | `REL_16_16`（COPYRIGHT） |
 | pgvector | 0.8.7 | `pgvector/pgvector:0.8.7-pg16@sha256:484e8380…2e579f` | PostgreSQL | [`pgvector_PostgreSQL-License.txt`](./pgvector_PostgreSQL-License.txt) | `v0.8.7` |
 | pg_bigm | v1.2-20250903 | postgres カスタムビルドで導入（`postgres/Dockerfile` でソースビルド） | PostgreSQL | [`pg_bigm_PostgreSQL-License.txt`](./pg_bigm_PostgreSQL-License.txt) | `v1.2-20250903` |
-| Keycloak | 26.8.2 | `quay.io/keycloak/keycloak:26.8.2@sha256:c68e286c…76bbf0` | Apache-2.0 | [`Keycloak_Apache-2.0.txt`](./Keycloak_Apache-2.0.txt) | `26.8.2` |
+| Keycloak | 26.8.2-3 | `quay.io/keycloak/keycloak:26.8.2-3@sha256:7e66a96e…ba38b3` | Apache-2.0 | [`Keycloak_Apache-2.0.txt`](./Keycloak_Apache-2.0.txt) | `26.8.2` |
 | SeaweedFS | 4.54 | `chrislusf/seaweedfs:4.54@sha256:4b42c212…222d15` | Apache-2.0 | [`SeaweedFS_Apache-2.0.txt`](./SeaweedFS_Apache-2.0.txt) | `4.54` |
 | ElasticMQ | v1.7.1 | `softwaremill/elasticmq:1.7.1@sha256:f1de391a…69da82` | Apache-2.0 | [`ElasticMQ_Apache-2.0.txt`](./ElasticMQ_Apache-2.0.txt) / [`ElasticMQ-NOTICE.txt`](./ElasticMQ-NOTICE.txt) | `v1.7.1`（`LICENSE.txt`＋NOTICE） |
 | Ollama | v0.40.13 | `ollama/ollama:0.40.13@sha256:b2f0122c…9cf429` | MIT | [`Ollama_MIT.txt`](./Ollama_MIT.txt) | `v0.40.13` |
 | Text Embeddings Inference (TEI) | v1.9.3 (cpu) | `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3@sha256:ad950d30…1fea07` | Apache-2.0 | [`TEI_Apache-2.0.txt`](./TEI_Apache-2.0.txt) | `v1.9.3` |
-| nginx | 1.30.6 stable | `nginx:1.30.6-alpine3.24@sha256:97036422…cfb3b5` | BSD-2-Clause | [`nginx_BSD-2-Clause.txt`](./nginx_BSD-2-Clause.txt) | `release-1.30.6` |
+| nginx | 1.30.7 stable | `nginx:1.30.7-alpine3.24@sha256:caf4e1e0…3a97e3` | BSD-2-Clause | [`nginx_BSD-2-Clause.txt`](./nginx_BSD-2-Clause.txt) | `release-1.30.7` |
 | Mailpit | v1.33.0 | `axllent/mailpit:v1.33.0@sha256:9b3a463b…fd5231` | MIT | [`Mailpit_MIT.txt`](./Mailpit_MIT.txt) | `v1.33.0` |
 | Dozzle | v11.4.3 | `amir20/dozzle:v11.4.3@sha256:244f218c…7deeb8` | MIT | [`Dozzle_MIT.txt`](./Dozzle_MIT.txt) | `v11.4.3` |
 | speaches | 0.8.3 (cpu) | `ghcr.io/speaches-ai/speaches:0.8.3-cpu@sha256:21e3df06…f53ef8` | MIT | [`speaches_MIT.txt`](./speaches_MIT.txt) | `v0.8.3` |
@@ -74,7 +74,7 @@
 | コンポーネント | web フロントエンド（`genai-web-onpre` からビルド・nginx が配信） |
 | 由来 | genai-web（MIT License, Copyright (c) 2026 Rifu.Sakamoto） |
 | 上流 | digital-go-jp/genai-web（v1.0.3 由来の派生。詳細は姉妹リポ genai-web-onpre の UPSTREAM.md） |
-| ライセンス本文 | [`genai-web_MIT.txt`](./genai-web_MIT.txt) |
+| ライセンス本文 | [`genai-web_MIT.txt`](./genai-web_MIT.txt)（`genai-web-onpre` の `LICENSE`〔2026-07-07 以降の版〕の写し） |
 | 第三者表記 | [`genai-web_THIRD-PARTY-NOTICES.txt`](./genai-web_THIRD-PARTY-NOTICES.txt)（ビルド時にバンドルされる npm 依存＝@aws-amplify〔Apache-2.0〕・多数の MIT/BSD ライブラリ等の権利表記を逐語保全） |
 | 追加の第三者表記 | elkjs 0.9.3（mermaid の依存・EPL-2.0）がビルドで配信バンドルに入ります。本文とソースの入手先は姉妹リポ genai-web-onpre の [`LICENSES-THIRD-PARTY/elkjs_EPL-2.0.txt`](https://github.com/sanpoyoshi-commons/genai-web-onpre/blob/main/LICENSES-THIRD-PARTY/elkjs_EPL-2.0.txt) と [`NOTICE`](https://github.com/sanpoyoshi-commons/genai-web-onpre/blob/main/NOTICE) にあります（本リポジトリには写していません） |
 

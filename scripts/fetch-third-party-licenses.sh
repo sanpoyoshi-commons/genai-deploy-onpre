@@ -101,9 +101,9 @@ fetch_first "TEI-NOTICE.txt" \
   "https://raw.githubusercontent.com/huggingface/text-embeddings-inference/v1.9.3/NOTICE" \
   "https://raw.githubusercontent.com/huggingface/text-embeddings-inference/v1.9.3/NOTICE.txt"
 
-# --- nginx 1.30.6 (BSD-2-Clause) ---
+# --- nginx 1.30.7 (BSD-2-Clause) ---
 fetch_first "nginx_BSD-2-Clause.txt" \
-  "https://raw.githubusercontent.com/nginx/nginx/release-1.30.6/LICENSE" \
+  "https://raw.githubusercontent.com/nginx/nginx/release-1.30.7/LICENSE" \
   "https://nginx.org/LICENSE"
 
 # --- Mailpit v1.33.0 (MIT) ---
@@ -144,7 +144,7 @@ fetch_first "stable-diffusion.cpp_MIT.txt" \
 
 # === Code Interpreter サンドボックス同梱コンポーネント（profile: sandbox・自前ビルド） ===
 # NsJail のビルド ref は sandbox/Dockerfile の ARG NSJAIL_REF と一致させること（PoC 確定 SHA）。
-NSJAIL_REF="${NSJAIL_REF:-3.4}"
+NSJAIL_REF="${NSJAIL_REF:-079d70dda4aa1edd9512cfd25ff1e47e316dc355}"
 fetch_first "NsJail_Apache-2.0.txt" \
   "https://raw.githubusercontent.com/google/nsjail/${NSJAIL_REF}/LICENSE" \
   "https://raw.githubusercontent.com/google/nsjail/master/LICENSE"

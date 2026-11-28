@@ -674,7 +674,7 @@ simple 認証ユーザー（`admin`）は初期設定の `./scripts/gen-secrets.
 ユーザーを追加する**ときは、次のコマンドで `dozzle/users.yml` を作り直します：
 
 ```bash
-docker run --rm amir20/dozzle:v10.5.3 generate <user> --password <pw> --name <name> > dozzle/users.yml
+docker run --rm amir20/dozzle:v11.4.3 generate <user> --password <pw> --name <name> > dozzle/users.yml
 ```
 
 UI は英語表記ですが、**ブラウザの自動翻訳機能を ON にすれば日本語化されます**

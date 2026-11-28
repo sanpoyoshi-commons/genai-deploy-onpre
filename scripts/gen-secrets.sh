@@ -225,7 +225,7 @@ align_env_with_secrets() {
 # Docker がマウント先を空ディレクトリとして自動生成し、Dozzle が "users.yml: is a directory" で
 # crash-loop する。これを防ぐため先に実体ファイルを作る。bcrypt 化は dozzle イメージの generate に委譲。
 # イメージは docker-compose.yml の dozzle と同一 digest に固定する。
-DOZZLE_IMAGE="amir20/dozzle:v10.5.3@sha256:1cc972250626553009ddacbdf1f5725b681cdcbabe551fec69cd728882ffbc58"
+DOZZLE_IMAGE="amir20/dozzle:v11.4.3@sha256:244f218c876d6ed766277e71a537f34bfb2c01829e1927737e3673a8327deeb8"
 render_dozzle_users() {
   local out="$REPO_ROOT/dozzle/users.yml"
   local user="admin"
